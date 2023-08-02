@@ -1,0 +1,38 @@
+
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:latest
+    container_name: postgres_container
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    ports:
+      - "5432:5432"
+  mariadb:
+    image: mariadb:latest
+    container_name: mariadb_container
+    environment:
+      MYSQL_ROOT_PASSWORD: maria
+      MYSQL_DATABASE: maria
+      MYSQL_USER: maria
+      MYSQL_PASSWORD: maria
+    ports:
+      - "3306:3306"
+  mysql:
+    image: mysql:latest
+    container_name: mysql_container
+    environment:
+      MYSQL_ROOT_PASSWORD: mysql
+      MYSQL_DATABASE: mysql
+      MYSQL_USER: mysql
+      MYSQL_PASSWORD: mysql
+    ports:
+      - "3307:3307"
+
+
+  hammerdb:
+    image: tpcorg/hammerdb:latest
+    container_name: hammerdb_container

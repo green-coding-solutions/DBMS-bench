@@ -1,0 +1,38 @@
+---
+name: HammerDB Postgres benchmark
+author: Didi Hoffmann <didi@green-coding.berlin)
+description: Benchmarks postgresql with HammerDB using TPC-C
+
+compose-file: !include compose.yml
+
+services:
+  hammerdb:
+    setup-commands:
+      - cp /tmp/repo/pg_tprocc_buildschema.tcl /home/HammerDB-4.8/scripts/python/postgres/tprocc/pg_tprocc_buildschema.tcl
+      - cp /tmp/repo/pg_tprocc_run.tcl /home/HammerDB-4.8/scripts/python/postgres/tprocc/pg_tprocc_run.tcl
+      - cp /tmp/repo/pg_tprocc_deleteschema.tcl /home/HammerDB-4.8/scripts/python/postgres/tprocc/pg_tprocc_deleteschema.tcl
+  mariadb:
+  mysql:
+
+flow:
+  - name: Run the bechnmarks
+    container: hammerdb
+    commands:
+      - type: console
+        command: ./hammerdbcli auto ./scripts/tcl/postgres/tprocc/pg_tprocc_buildschema.tcl
+        note: BUILD HAMMERDB SCHEMA
+        log-stdout: true
+      - type: console
+        command: sleep 30
+        note: Idling
+      - type: console
+        command: ./hammerdbcli auto ./scripts/tcl/postgres/tprocc/pg_tprocc_run.tcl
+        note: RUN HAMMERDB TEST
+        log-stdout: true
+      - type: console
+        command: sleep 30
+        note: Idling
+      - type: console
+        command: ./hammerdbcli auto ./scripts/tcl/postgres//tprocc/pg_tprocc_deleteschema.tcl
+        note: DROP HAMMERDB SCHEMA
+        log-stdout: true
