@@ -1,7 +1,6 @@
 #!/bin/tclsh
 # maintainer: Pooja Jain
 
-set tmpdir $::env(TMP)
 puts "SETTING CONFIGURATION"
 dbset db pg
 dbset bm TPC-C
@@ -16,10 +15,12 @@ diset tpcc pg_defaultdbase postgres
 diset tpcc pg_user postgres
 diset tpcc pg_pass postgres
 diset tpcc pg_dbase postgres
+
 diset tpcc pg_driver timed
-diset tpcc pg_total_iterations 10000000
+
 diset tpcc pg_rampup 2
 diset tpcc pg_duration 5
+
 diset tpcc pg_vacuum true
 diset tpcc pg_timeprofile true
 diset tpcc pg_allwarehouse true
@@ -34,6 +35,6 @@ set jobid [ vurun ]
 vudestroy
 tcstop
 puts "TEST COMPLETE"
-set of [ open $tmpdir/pg_tprocc w ]
+set of [ open /tmp/mysql_tprocc w ]
 puts $of $jobid
 close $of

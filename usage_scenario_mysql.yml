@@ -7,21 +7,21 @@ compose-file: !include compose.yml
 
 services:
   mariadb:
-  mysql:
+  postgres:
 
 flow:
   - name: Run the bechnmarks
     container: hammerdb_container
     commands:
       - type: console
-        command: ./hammerdbcli auto /tmp/repo/pg/pg_tprocc_buildschema.tcl
+        command: ./hammerdbcli auto /tmp/repo/mysql/mysql_tprocc_buildschema.tcl
         note: BUILD HAMMERDB SCHEMA
         log-stdout: true
       - type: console
-        command: ./hammerdbcli auto /tmp/repo/pg/pg_tprocc_run.tcl
+        command: ./hammerdbcli auto /tmp/repo/mysql/mysql_tprocc_run.tcl
         note: RUN HAMMERDB TEST
         log-stdout: true
       - type: console
-        command: ./hammerdbcli auto /tmp/repo/pg/pg_tprocc_deleteschema.tcl
+        command: ./hammerdbcli auto /tmp/repo/mysql/mysql_tprocc_deleteschema.tcl
         note: DROP HAMMERDB SCHEMA
         log-stdout: true

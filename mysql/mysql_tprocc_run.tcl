@@ -1,7 +1,6 @@
 #!/bin/tclsh
 # maintainer: Pooja Jain
 
-set tmpdir $::env(TMP)
 puts "SETTING CONFIGURATION"
 dbset db mysql
 dbset bm TPC-C
@@ -29,6 +28,6 @@ set jobid [ vurun ]
 vudestroy
 tcstop
 puts "TEST COMPLETE"
-set of [ open $tmpdir/mysql_tprocc w ]
+set of [ open /tmp/mysql_tprocc w ]
 puts $of $jobid
 close $of
