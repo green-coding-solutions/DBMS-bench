@@ -14,14 +14,16 @@ flow:
     container: hammerdb_container
     commands:
       - type: console
-        command: ./hammerdbcli auto /tmp/repo/pg/pg_tprocc_buildschema.tcl
         note: BUILD HAMMERDB SCHEMA
+        command: ./hammerdbcli auto /tmp/repo/pg/pg_tprocc_buildschema.tcl
         log-stdout: true
       - type: console
-        command: ./hammerdbcli auto /tmp/repo/pg/pg_tprocc_run.tcl
         note: RUN HAMMERDB TEST
+        command: ./hammerdbcli auto /tmp/repo/pg/pg_tprocc_run.tcl | awk '/System achieved [0-9]+ NOPM/ { match($0, /System achieved [0-9]+ NOPM/); printf("GMT_SCI_R=%s\n", substr($0, RSTART+16, RLENGTH-21)) }'
+        shell: sh
         log-stdout: true
+        read-sci-stdout: true
       - type: console
-        command: ./hammerdbcli auto /tmp/repo/pg/pg_tprocc_deleteschema.tcl
         note: DROP HAMMERDB SCHEMA
+        command: ./hammerdbcli auto /tmp/repo/pg/pg_tprocc_deleteschema.tcl
         log-stdout: true
