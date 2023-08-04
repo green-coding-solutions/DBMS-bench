@@ -16,7 +16,7 @@ flow:
       - type: console
         note: BUILD HAMMERDB SCHEMA
         command: ./hammerdbcli auto /tmp/repo/maria/maria_tprocc_buildschema.tcl
-        log-stdout: true
+        log-stdout: false
       - type: console
         note: RUN HAMMERDB TEST
         command: ./hammerdbcli auto /tmp/repo/maria/maria_tprocc_run.tcl | awk '/System achieved [0-9]+ NOPM/ { match($0, /System achieved [0-9]+ NOPM/); printf("GMT_SCI_R=%s\n", substr($0, RSTART+16, RLENGTH-21)) }'
@@ -26,4 +26,4 @@ flow:
       - type: console
         note: DROP HAMMERDB SCHEMA
         command: ./hammerdbcli auto /tmp/repo/maria/maria_tprocc_deleteschema.tcl
-        log-stdout: true
+        log-stdout: false
