@@ -17,6 +17,7 @@ diset tpcc maria_rampup 2
 diset tpcc maria_duration 5
 diset tpcc maria_allwarehouse true
 diset tpcc maria_timeprofile true
+diset tpcc maria_raiseerror true
 
 loadscript
 puts "TEST STARTED"

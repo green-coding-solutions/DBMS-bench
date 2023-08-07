@@ -12,6 +12,8 @@ diset connection maria_socket /tmp/mariadb.sock
 diset tpcc maria_user maria
 diset tpcc maria_pass maria
 diset tpcc maria_dbase maria
+diset tpcc maria_raiseerror true
+
 puts " DROP SCHEMA STARTED"
 deleteschema
 puts "DROP SCHEMA COMPLETED"

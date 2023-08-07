@@ -17,6 +17,8 @@ diset tpcc mysql_rampup 2
 diset tpcc mysql_duration 5
 diset tpcc mysql_allwarehouse true
 diset tpcc mysql_timeprofile true
+diset tpcc mysql_raiseerror true
+
 
 loadscript
 puts "TEST STARTED"

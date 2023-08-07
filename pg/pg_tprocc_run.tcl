@@ -15,6 +15,7 @@ diset tpcc pg_defaultdbase postgres
 diset tpcc pg_user postgres
 diset tpcc pg_pass postgres
 diset tpcc pg_dbase postgres
+diset tpcc pg_raiseerror true
 
 diset tpcc pg_driver timed
 
