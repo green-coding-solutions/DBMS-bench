@@ -8,20 +8,17 @@ compose-file: !include compose.yml
 services:
   mariadb:
   postgres:
+  hammerdb:
+    setup-commands:
+      - ./hammerdbcli auto /tmp/repo/mysql/mysql_tprocc_buildschema.tcl
 
 flow:
   - name: Run the bechnmarks
     container: hammerdb_container
     commands:
       - type: console
-        command: ./hammerdbcli auto /tmp/repo/mysql/mysql_tprocc_buildschema.tcl
-        note: BUILD HAMMERDB SCHEMA
-        log-stdout: true
-      - type: console
-        command: ./hammerdbcli auto /tmp/repo/mysql/mysql_tprocc_run.tcl
         note: RUN HAMMERDB TEST
+        command: ./hammerdbcli auto /tmp/repo/mysql/mysql_tprocc_run.tcl | awk '/System achieved [0-9]+ NOPM/ { match($0, /System achieved [0-9]+ NOPM/); printf("GMT_SCI_R=%s\n", substr($0, RSTART+16, RLENGTH-21)) }'
+        shell: sh
         log-stdout: true
-      - type: console
-        command: ./hammerdbcli auto /tmp/repo/mysql/mysql_tprocc_deleteschema.tcl
-        note: DROP HAMMERDB SCHEMA
-        log-stdout: true
+        read-sci-stdout: true

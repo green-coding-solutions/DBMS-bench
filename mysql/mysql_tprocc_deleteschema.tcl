@@ -12,6 +12,9 @@ diset connection mysql_socket /tmp/mysql.sock
 diset tpcc mysql_user mysql
 diset tpcc mysql_pass mysql
 diset tpcc mysql_dbase mysql
+diset tpcc mysql_raiseerror true
+
+
 puts " DROP SCHEMA STARTED"
 deleteschema
 puts "DROP SCHEMA COMPLETED"

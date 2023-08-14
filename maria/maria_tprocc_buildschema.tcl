@@ -17,6 +17,8 @@ diset tpcc maria_user maria
 diset tpcc maria_pass maria
 diset tpcc maria_dbase maria
 diset tpcc maria_storage_engine innodb
+diset tpcc maria_raiseerror true
+
 if { $warehouse >= 200 } {
 diset tpcc maria_partition true
 	} else {

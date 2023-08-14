@@ -15,6 +15,8 @@ diset tpcc pg_user postgres
 diset tpcc pg_pass postgres
 diset tpcc pg_dbase postgres
 diset tpcc pg_tspace pg_default
+diset tpcc pg_raiseerror true
+
 
 
 puts "DROP SCHEMA STARTED"

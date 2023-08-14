@@ -21,6 +21,8 @@ diset tpcc pg_pass postgres
 diset tpcc pg_dbase postgres
 diset tpcc pg_tspace pg_default
 diset tpcc pg_storedprocs true
+diset tpcc pg_raiseerror true
+
 if { $warehouse >= 200 } {
 diset tpcc pg_partition true
 	} else {
