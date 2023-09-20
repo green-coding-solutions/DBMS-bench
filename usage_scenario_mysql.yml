@@ -5,6 +5,10 @@ description: Benchmarks postgresql with HammerDB using TPC-C
 
 compose-file: !include compose.yml
 
+services:
+  postgres: # empty key will remove the unused service
+  mariadb: # empty key will remove the service
+
 flow:
   - name: Run the bechnmarks
     container: hammerdb_container
