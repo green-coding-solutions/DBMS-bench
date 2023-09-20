@@ -10,7 +10,7 @@ diset connection pg_port 5432
 diset connection pg_sslmode disable
 
 set vu [ numberOfCPUs ]
-set warehouse [ expr {$vu * 5} ]
+set warehouse [ expr {$vu * 20} ]
 diset tpcc pg_count_ware $warehouse
 diset tpcc pg_num_vu $vu
 diset tpcc pg_superuser postgres

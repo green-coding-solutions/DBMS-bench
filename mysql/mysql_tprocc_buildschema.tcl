@@ -6,11 +6,11 @@ dbset db mysql
 dbset bm TPC-C
 
 diset connection mysql_host mysql_container
-diset connection mysql_port 3307
+diset connection mysql_port 3306
 diset connection mysql_socket /tmp/mysql.sock
 
 set vu [ numberOfCPUs ]
-set warehouse [ expr {$vu * 5} ]
+set warehouse [ expr {$vu * 20} ]
 diset tpcc mysql_count_ware $warehouse
 diset tpcc mysql_num_vu $vu
 diset tpcc mysql_user mysql
