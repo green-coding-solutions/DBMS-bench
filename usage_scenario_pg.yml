@@ -5,6 +5,9 @@ description: Benchmarks postgresql with HammerDB using TPC-C
 
 compose-file: !include compose.yml
 
+sci:
+  R_d: TPC-C SQL-op
+
 services:
   mariadb: # empty key will remove the unused service
   mysql: # empty key will remove the service
