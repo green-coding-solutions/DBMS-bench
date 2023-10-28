@@ -22,7 +22,7 @@ services:
     ports:
       - "3306:3306"
   mysql:
-    image: mysql:8.1.0-oracle
+    image: mysql:8.2.0-oracle
     container_name: mysql_container
     environment:
       MYSQL_ROOT_PASSWORD: mysql
