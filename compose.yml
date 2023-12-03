@@ -12,7 +12,7 @@ services:
     ports:
       - "5432:5432"
   mariadb:
-    image: mariadb:11.1.2-jammy
+    image: mariadb:11.2.2-jammy
     container_name: mariadb_container
     environment:
       MYSQL_ROOT_PASSWORD: maria
