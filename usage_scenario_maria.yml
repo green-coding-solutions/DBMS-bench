@@ -14,7 +14,7 @@ services:
   mysql: # empty key will remove the service
 
 flow:
-  - name: Run the bechnmarks
+  - name: Build Warehouses
     container: hammerdb_container
     commands:
       - type: console
@@ -23,12 +23,18 @@ flow:
         shell: sh
         log-stdout: true
         read-sci-stdout: true
+  - name: Query Warehouses
+    container: hammerdb_container
+    commands:
       - type: console
         note: RUN HAMMERDB SELECTS
         command: ./hammerdbcli auto /tmp/repo/maria/maria_tprocc_run.tcl | tee /dev/stderr | awk '/System achieved [0-9]+ NOPM/ { match($0, /System achieved [0-9]+ NOPM/); printf("GMT_SCI_R=%s\n", substr($0, RSTART+16, RLENGTH-21)) }'
         shell: sh
         log-stdout: true
         read-sci-stdout: true
+  - name: Drop Warehouses
+    container: hammerdb_container
+    commands:
       - type: console
         note: RUN HAMMERDB DROP
         command: ./hammerdbcli auto /tmp/repo/maria/maria_tprocc_deleteschema.tcl | tee /dev/stderr | awk '/System achieved [0-9]+ NOPM/ { match($0, /System achieved [0-9]+ NOPM/); printf("GMT_SCI_R=%s\n", substr($0, RSTART+16, RLENGTH-21)) }'
