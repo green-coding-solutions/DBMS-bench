@@ -7,7 +7,6 @@ dbset bm TPC-C
 
 diset connection maria_host mariadb_container
 diset connection maria_port 3306
-diset connection maria_socket /tmp/mariadb.sock
 
 set vu [ numberOfCPUs ]
 set warehouse [ expr {$vu * 20} ]

@@ -7,7 +7,6 @@ dbset bm TPC-C
 
 diset connection mysql_host mysql_container
 diset connection mysql_port 3306
-diset connection mysql_socket /tmp/mysql.sock
 
 set vu [ numberOfCPUs ]
 set warehouse [ expr {$vu * 20} ]
