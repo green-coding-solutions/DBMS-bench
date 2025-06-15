@@ -9,7 +9,7 @@ services:
     ports:
       - "5432:5432"
   mariadb:
-    image: mariadb:11.7.2-noble
+    image: mariadb:11.8.2-noble
     container_name: mariadb_container
     environment:
       MYSQL_ROOT_PASSWORD: maria
