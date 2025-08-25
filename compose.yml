@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:17.5-bookworm
+    image: postgres:17.6-bookworm
     container_name: postgres_container
     environment:
       POSTGRES_USER: postgres
@@ -9,7 +9,7 @@ services:
     ports:
       - "5432:5432"
   mariadb:
-    image: mariadb:11.8.2-noble
+    image: mariadb:12.0.2-noble
     container_name: mariadb_container
     environment:
       MYSQL_ROOT_PASSWORD: maria
