@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:17.6-trixie
+    image: postgres:18.1-trixie
     container_name: postgres_container
     environment:
       POSTGRES_USER: postgres
