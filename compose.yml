@@ -19,7 +19,7 @@ services:
     ports:
       - "3306:3306"
   mysql:
-    image: mysql:9.5.0-oraclelinux9
+    image: mysql:9.6.0-oraclelinux9
     container_name: mysql_container
     command: --default-authentication-plugin=mysql_native_password
     environment:
