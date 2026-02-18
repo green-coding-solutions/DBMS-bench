@@ -1,0 +1,78 @@
+---
+name: Sysbench Postgres benchmark
+author: Didi Hoffmann <didi@green-coding.berlin)
+description: Benchmarks PostgreSQL with Sysbench OLTP (read/write)
+
+compose-file: !include compose.yml
+
+sci:
+  R_d: TPC-C SQL-op
+
+services:
+  mariadb: # empty key will remove the unused service
+  mysql: # empty key will remove the service
+
+flow:
+  - name: Create sbtest DB
+    container: postgres_container
+    commands:
+      - type: console
+        note: CREATE SBTEST DB
+        command: psql -U postgres -d postgres -c "CREATE DATABASE sbtest;"
+        shell: sh
+
+  - name: Prepare Sysbench Data
+    container: sysbench_container
+    commands:
+      - type: console
+        note: SYSBENCH PREPARE
+        shell: sh
+        command: >
+          sysbench oltp_read_write
+          --db-driver=pgsql
+          --pgsql-host=postgres_container
+          --pgsql-user=postgres
+          --pgsql-password=postgres
+          --pgsql-db=sbtest
+          --tables=10
+          --table-size=100000
+          prepare
+        log-stdout: true
+
+  - name: Run Sysbench Workload
+    container: sysbench_container
+    commands:
+      - type: console
+        note: SYSBENCH RUN
+        shell: sh
+        command: >
+          sysbench oltp_read_write
+          --db-driver=pgsql
+          --pgsql-host=postgres_container
+          --pgsql-user=postgres
+          --pgsql-password=postgres
+          --pgsql-db=sbtest
+          --tables=10
+          --table-size=100000
+          --time=60
+          --threads=4
+          run
+        log-stdout: true
+
+  - name: Cleanup Sysbench Data
+    container: sysbench_container
+    commands:
+      - type: console
+        note: SYSBENCH CLEANUP
+        shell: sh
+        command: >
+          sysbench oltp_read_write
+          --db-driver=pgsql
+          --pgsql-host=postgres_container
+          --pgsql-user=postgres
+          --pgsql-password=postgres
+          --pgsql-db=sbtest
+          --tables=10
+          --table-size=100000
+          cleanup
+        log-stdout: true
