@@ -18,7 +18,7 @@ flow:
     commands:
       - type: console
         note: RUN HAMMERDB BUILD
-        command: ./hammerdbcli auto /tmp/repo/mysql/mysql_tprocc_buildschema.tcl | tee /dev/stderr | awk '/System achieved [0-9]+ NOPM/ { match($0, /System achieved [0-9]+ NOPM/); printf("GMT_SCI_R=%s\n", substr($0, RSTART+16, RLENGTH-21)) }'
+        command: ./hammerdbcli auto /tmp/repo/production/mysql/mysql_tprocc_buildschema.tcl | tee /dev/stderr | awk '/System achieved [0-9]+ NOPM/ { match($0, /System achieved [0-9]+ NOPM/); printf("GMT_SCI_R=%s\n", substr($0, RSTART+16, RLENGTH-21)) }'
         shell: sh
         log-stdout: true
         read-sci-stdout: true
@@ -27,7 +27,7 @@ flow:
     commands:
       - type: console
         note: RUN HAMMERDB SELECTS
-        command: ./hammerdbcli auto /tmp/repo/mysql/mysql_tprocc_run.tcl | tee /dev/stderr | awk '/System achieved [0-9]+ NOPM/ { match($0, /System achieved [0-9]+ NOPM/); printf("GMT_SCI_R=%s\n", substr($0, RSTART+16, RLENGTH-21)) }'
+        command: ./hammerdbcli auto /tmp/repo/production/mysql/mysql_tprocc_run.tcl | tee /dev/stderr | awk '/System achieved [0-9]+ NOPM/ { match($0, /System achieved [0-9]+ NOPM/); printf("GMT_SCI_R=%s\n", substr($0, RSTART+16, RLENGTH-21)) }'
         shell: sh
         log-stdout: true
         read-sci-stdout: true
@@ -36,7 +36,7 @@ flow:
     commands:
       - type: console
         note: RUN HAMMERDB DROP
-        command: ./hammerdbcli auto /tmp/repo/mysql/mysql_tprocc_deleteschema.tcl | tee /dev/stderr | awk '/System achieved [0-9]+ NOPM/ { match($0, /System achieved [0-9]+ NOPM/); printf("GMT_SCI_R=%s\n", substr($0, RSTART+16, RLENGTH-21)) }'
+        command: ./hammerdbcli auto /tmp/repo/production/mysql/mysql_tprocc_deleteschema.tcl | tee /dev/stderr | awk '/System achieved [0-9]+ NOPM/ { match($0, /System achieved [0-9]+ NOPM/); printf("GMT_SCI_R=%s\n", substr($0, RSTART+16, RLENGTH-21)) }'
         note: DROP HAMMERDB SCHEMA
         shell: sh
         log-stdout: true
