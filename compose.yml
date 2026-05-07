@@ -41,3 +41,9 @@ services:
       MSSQL_SA_PASSWORD: Mssql1234!
     ports:
       - "1433:1433"
+  cockroachdb:
+    image: cockroachdb/cockroach:latest
+    container_name: cockroachdb_container
+    command: start-single-node --insecure
+    ports:
+      - "26257:26257"
