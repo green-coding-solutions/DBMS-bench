@@ -1,0 +1,56 @@
+---
+name: HammerDB Oracle benchmark
+author: Max Jahns
+description: Benchmarks Oracle with HammerDB using TPC-C
+compose-file: !include compose.yml
+ignore-unsupported-compose: true
+sci:
+  R_d: TPC-C SQL-op
+services:
+  postgres:
+  mariadb:
+  mysql:
+  mssql:
+  cockroachdb:
+  oracle:
+    image: container-registry.oracle.com/database/free:latest
+  hammerdb:
+    depends_on:
+      oracle:
+        condition: service_started
+flow:
+  - name: Wait for Oracle
+    container: hammerdb_container
+    commands:
+      - type: console
+        note: Waiting for Oracle to be ready
+        command: sleep 120
+        shell: sh
+        log-stdout: true
+  - name: Build Warehouses
+    container: hammerdb_container
+    commands:
+      - type: console
+        note: RUN HAMMERDB BUILD
+        command: ./hammerdbcli auto /tmp/repo/production/oracle/oracle_tprocc_buildschema.tcl | tee /dev/stderr | awk '/System achieved [0-9]+ NOPM/ { match($0, /System achieved [0-9]+ NOPM/); printf("GMT_SCI_R=%s\n", substr($0, RSTART+16, RLENGTH-21)) }'
+        shell: sh
+        log-stdout: true
+        read-sci-stdout: true
+  - name: Query Warehouses
+    container: hammerdb_container
+    commands:
+      - type: console
+        note: RUN HAMMERDB RUN
+        command: ./hammerdbcli auto /tmp/repo/production/oracle/oracle_tprocc_run.tcl | tee /dev/stderr | awk '/System achieved [0-9]+ NOPM/ { match($0, /System achieved [0-9]+ NOPM/); printf("GMT_SCI_R=%s\n", substr($0, RSTART+16, RLENGTH-21)) }'
+        shell: sh
+        log-stdout: true
+        read-sci-stdout: true
+  - name: Drop Warehouses
+    container: hammerdb_container
+    commands:
+      - type: console
+        note: RUN HAMMERDB DROP
+        command: ./hammerdbcli auto /tmp/repo/production/oracle/oracle_tprocc_deleteschema.tcl | tee /dev/stderr | awk '/System achieved [0-9]+ NOPM/ { match($0, /System achieved [0-9]+ NOPM/); printf("GMT_SCI_R=%s\n", substr($0, RSTART+16, RLENGTH-21)) }'
+        shell: sh
+        log-stdout: true
+        read-sci-stdout: true

@@ -33,6 +33,9 @@ services:
   hammerdb:
     image: tpcorg/hammerdb:latest
     container_name: hammerdb_container
+    environment:
+      LD_LIBRARY_PATH: /home/instantclient_21_18
+      ORACLE_HOME: /home/instantclient_21_18  
   mssql:
     image: mcr.microsoft.com/mssql/server:2022-latest
     container_name: mssql_container
@@ -47,3 +50,10 @@ services:
     command: start-single-node --insecure
     ports:
       - "26257:26257"
+  oracle:
+    image: container-registry.oracle.com/database/free:latest
+    container_name: oracle_container
+    environment:
+      ORACLE_PWD: manager
+    ports:
+      - "1521:1521"

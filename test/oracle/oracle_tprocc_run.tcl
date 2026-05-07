@@ -1,0 +1,29 @@
+#!/bin/tclsh
+puts "SETTING CONFIGURATION"
+dbset db ora
+dbset bm TPC-C
+diset connection system_user system
+diset connection system_password manager
+diset connection instance //oracle_container:1521/freepdb1
+diset tpcc tpcc_user tpcc
+diset tpcc tpcc_pass tpcc
+diset tpcc ora_driver timed
+diset tpcc total_iterations 10000000
+diset tpcc rampup 0
+diset tpcc duration 1
+diset tpcc ora_timeprofile true
+diset tpcc allwarehouse true
+diset tpcc checkpoint false
+loadscript
+puts "TEST STARTED"
+vuset vu 1
+vucreate
+tcstart
+tcstatus
+set jobid [ vurun ]
+vudestroy
+tcstop
+puts "TEST COMPLETE"
+set of [ open /tmp/oracle_tprocc w ]
+puts $of $jobid
+close $of
