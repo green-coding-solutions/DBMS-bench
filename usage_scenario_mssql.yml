@@ -1,6 +1,6 @@
 ---
 name: HammerDB MSSQL benchmark
-author: Didi Hoffmann <didi@green-coding.berlin>
+author: Max Jahns
 description: Benchmarks SQL Server with HammerDB using TPC-C
 compose-file: !include compose.yml
 sci:
@@ -9,7 +9,21 @@ services:
   postgres:
   mariadb:
   mysql:
+  cockroachdb:
+  oracle:
+  hammerdb:
+    depends_on:
+      mssql:
+        condition: service_started
 flow:
+  - name: Wait for SQL Server
+    container: hammerdb_container
+    commands:
+      - type: console
+        note: Waiting for SQL Server to be ready
+        command: sleep 30
+        shell: sh
+        log-stdout: true
   - name: Build Warehouses
     container: hammerdb_container
     commands:
