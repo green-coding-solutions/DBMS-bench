@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:18.1-trixie
+    image: postgres:18.3-trixie
     container_name: postgres_container
     environment:
       POSTGRES_USER: postgres
@@ -9,7 +9,7 @@ services:
     ports:
       - "5432:5432"
   mariadb:
-    image: mariadb:12.1.2-noble
+    image: mariadb:12.2.2-noble
     container_name: mariadb_container
     environment:
       MYSQL_ROOT_PASSWORD: maria
@@ -21,7 +21,6 @@ services:
   mysql:
     image: mysql:9.5.0-oraclelinux9
     container_name: mysql_container
-    command: --default-authentication-plugin=mysql_native_password
     environment:
       MYSQL_ROOT_PASSWORD: mysql
       MYSQL_DATABASE: mysql
@@ -29,8 +28,16 @@ services:
       MYSQL_PASSWORD: mysql
     ports:
       - "3307:3306"
-
-
   hammerdb:
     image: tpcorg/hammerdb:latest
     container_name: hammerdb_container
+    environment:
+      LD_LIBRARY_PATH: /home/instantclient_21_18
+      ORACLE_HOME: /home/instantclient_21_18
+  oracle:
+    image: container-registry.oracle.com/database/free:latest
+    container_name: oracle_container
+    environment:
+      ORACLE_PWD: manager
+    ports:
+      - "1521:1521"
