@@ -4,8 +4,6 @@ author: Max Jahns
 description: Benchmarks Oracle with HammerDB using TPC-C
 compose-file: !include compose.yml
 ignore-unsupported-compose: true
-sci:
-  R_d: TPC-C SQL-op
 services:
   postgres:
   mariadb:
