@@ -3,8 +3,6 @@ name: HammerDB CockroachDB benchmark
 author: Max Jahns
 description: Benchmarks CockroachDB with HammerDB using TPC-C
 compose-file: !include compose.yml
-sci:
-  R_d: TPC-C SQL-op
 services:
   postgres:
   mariadb:
