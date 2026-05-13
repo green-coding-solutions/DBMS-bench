@@ -21,7 +21,6 @@ services:
   mysql:
     image: mysql:9.5.0-oraclelinux9
     container_name: mysql_container
-    command: --default-authentication-plugin=mysql_native_password
     environment:
       MYSQL_ROOT_PASSWORD: mysql
       MYSQL_DATABASE: mysql
@@ -34,3 +33,27 @@ services:
   hammerdb:
     image: tpcorg/hammerdb:latest
     container_name: hammerdb_container
+    environment:
+      LD_LIBRARY_PATH: /home/instantclient_21_18
+      ORACLE_HOME: /home/instantclient_21_18  
+  mssql:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: mssql_container
+    environment:
+      ACCEPT_EULA: Y
+      MSSQL_SA_PASSWORD: Mssql1234!
+    ports:
+      - "1433:1433"
+  cockroachdb:
+    image: cockroachdb/cockroach:latest
+    container_name: cockroachdb_container
+    command: start-single-node --insecure
+    ports:
+      - "26257:26257"
+  oracle:
+    image: container-registry.oracle.com/database/free:latest
+    container_name: oracle_container
+    environment:
+      ORACLE_PWD: manager
+    ports:
+      - "1521:1521"
