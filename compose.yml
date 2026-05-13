@@ -21,7 +21,6 @@ services:
   mysql:
     image: mysql:9.5.0-oraclelinux9
     container_name: mysql_container
-    command: --default-authentication-plugin=mysql_native_password
     environment:
       MYSQL_ROOT_PASSWORD: mysql
       MYSQL_DATABASE: mysql
@@ -29,8 +28,14 @@ services:
       MYSQL_PASSWORD: mysql
     ports:
       - "3307:3306"
-
-
   hammerdb:
     image: tpcorg/hammerdb:latest
     container_name: hammerdb_container
+  mssql:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: mssql_container
+    environment:
+      ACCEPT_EULA: Y
+      MSSQL_SA_PASSWORD: Mssql1234!
+    ports:
+      - "1433:1433"
