@@ -3,8 +3,6 @@ name: HammerDB MSSQL benchmark
 author: Max Jahns
 description: Benchmarks SQL Server with HammerDB using TPC-C
 compose-file: !include compose.yml
-sci:
-  R_d: TPC-C SQL-op
 services:
   postgres:
   mariadb:
