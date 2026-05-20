@@ -5,8 +5,10 @@ description: Benchmarks postgresql with HammerDB using TPC-C
 
 compose-file: !include compose.yml
 
-sci:
-  R_d: TPC-C SQL-op
+custom_metrics:
+  sqlop:
+    unit: TPC-C SQL-op
+    sci: true
 
 services:
   postgres: # empty key will remove the unused service
