@@ -24,6 +24,9 @@ Examples:
   # Only the TPC-H Postgres scenario, with a completion email
   ./run_on_cluster.py --api-key YOUR_TOKEN --machine-id 42 \
       --filter 'tpch/pg.yml' --email you@example.com
+
+  # Only unoptimized scenarios
+  ./run_on_cluster.py --api-key YOUR_TOKEN --machine-id 42 -t 0 -n
 """
 
 from __future__ import annotations
@@ -157,6 +160,20 @@ def discover_scenarios(repo: Path) -> list[Path]:
     return scenarios
 
 
+def scenario_tier(rel_path: Path) -> str:
+    """Return the tuning tier for a scenario path: 0, 1, or 2.
+
+    Tier 2 includes the common ``.t2.yml`` files and the ``.t2col.yml`` columnar
+    sub-tier, because both represent workload-aware optimization beyond T1.
+    """
+    name = rel_path.name
+    if name.endswith(".t1.yml"):
+        return "1"
+    if name.endswith(".t2.yml") or name.endswith(".t2col.yml"):
+        return "2"
+    return "0"
+
+
 def build_name(prefix: str, rel_path: Path, branch: str) -> str:
     """A useful, unambiguous run name, e.g. 'DBMS-bench tpcc/pg'."""
     benchmark = rel_path.parent.name  # tpcc / tpch (drop the benchmarks/ prefix)
@@ -204,6 +221,12 @@ def build_parser(submit_mod: ModuleType) -> argparse.ArgumentParser:
         "(e.g. 'tpch/*.yml' or 'tpcc/pg.yml').",
     )
     p.add_argument(
+        "-t",
+        "--tier",
+        choices=("0", "1", "2"),
+        help="Only submit one tuning tier: 0=unoptimized base, 1=T1, 2=T2/T2+.",
+    )
+    p.add_argument(
         "--api-url",
         default=os.getenv("GMT_API_URL", "https://api.green-coding.io/").strip(),
         help="Base GMT API URL.",
@@ -221,6 +244,7 @@ def build_parser(submit_mod: ModuleType) -> argparse.ArgumentParser:
     )
     p.add_argument("--no-fetch", action="store_true", help="Skip 'git fetch' before checking.")
     p.add_argument(
+        "-n",
         "--dry-run",
         action="store_true",
         help="Show what would be submitted without contacting the API.",
@@ -267,6 +291,8 @@ def main() -> None:
 
     scenarios = discover_scenarios(repo)
     rel_scenarios = [s.relative_to(repo) for s in scenarios]
+    if args.tier is not None:
+        rel_scenarios = [r for r in rel_scenarios if scenario_tier(r) == args.tier]
     if args.filter:
         # Match against the full repo-relative path (benchmarks/tpcc/pg.yml) as well
         # as the benchmarks-relative path (tpcc/pg.yml), so either form works.
@@ -277,13 +303,20 @@ def main() -> None:
 
         rel_scenarios = [r for r in rel_scenarios if _matches(r)]
     if not rel_scenarios:
-        suffix = f" matching '{args.filter}'" if args.filter else ""
+        filters = []
+        if args.tier is not None:
+            filters.append(f"tier {args.tier}")
+        if args.filter:
+            filters.append(f"'{args.filter}'")
+        suffix = " matching " + " and ".join(filters) if filters else ""
         fail("no usage scenarios found to submit" + suffix)
 
     print(f"Repo:     {repo_url}")
     print(f"Branch:   {branch}")
     print(f"Machine:  {args.machine_id}")
     print(f"Schedule: {args.schedule_mode}")
+    if args.tier is not None:
+        print(f"Tier:     T{args.tier}")
     print(f"Scenarios ({len(rel_scenarios)}):")
     for rel in rel_scenarios:
         print(f"  - {rel.as_posix():<28} -> {build_name(name_prefix, rel, branch)}")

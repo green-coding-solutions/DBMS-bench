@@ -198,13 +198,16 @@ Scenarios are auto-discovered by `run_on_cluster.py`; filter by tier:
 
 ```sh
 # Postgres TPC-H across tiers: default -> envelope -> workload-aware
-./run_on_cluster.py --machine-id N --filter 'benchmarks/tpch/pg.yml'
-./run_on_cluster.py --machine-id N --filter 'benchmarks/tpch/pg.t1.yml'
-./run_on_cluster.py --machine-id N --filter 'benchmarks/tpch/pg.t2.yml'
+./run_on_cluster.py --machine-id N -t 0 --filter 'tpch/pg.yml'
+./run_on_cluster.py --machine-id N -t 1 --filter 'tpch/pg.t1.yml'
+./run_on_cluster.py --machine-id N -t 2 --filter 'tpch/pg.t2.yml'
 
-# every T2 scenario, or just the columnar sub-tier
-./run_on_cluster.py --machine-id N --filter 'benchmarks/*/*.t2.yml'
+# every T2/T2+ scenario, or just the columnar sub-tier
+./run_on_cluster.py --machine-id N -t 2
 ./run_on_cluster.py --machine-id N --filter 'benchmarks/*/*.t2col.yml'
+
+# preview selected runs without submitting
+./run_on_cluster.py --machine-id N -t 0 -n
 ```
 
 ## Roadmap

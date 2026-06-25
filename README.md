@@ -64,7 +64,9 @@ automatically:
 # default vs. envelope-sized, Postgres TPC-C
 ./run_on_cluster.py --machine-id N --filter 'tpcc/pg.yml'
 ./run_on_cluster.py --machine-id N --filter 'tpcc/pg.t1.yml'
-./run_on_cluster.py --machine-id N --filter '*/*.t1.yml'   # every T1 scenario
+./run_on_cluster.py --machine-id N -t 0                    # every T0 scenario
+./run_on_cluster.py --machine-id N -t 1                    # every T1 scenario
+./run_on_cluster.py --machine-id N -t 0 -n                 # preview without submitting
 ```
 
 See [TUNING.md](TUNING.md) for per-engine settings, provenance, threats to validity (Oracle Free / Db2 Community
