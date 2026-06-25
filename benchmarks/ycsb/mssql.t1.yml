@@ -1,0 +1,31 @@
+---
+name: BenchBase MSSQL YCSB benchmark (T1 envelope-sized)
+author: Didi Hoffmann <didi@green-coding.berlin)
+description: >
+  YCSB (BenchBase) on SQL Server, tuning tier T1 (envelope-sized). max server
+  memory via MSSQL_MEMORY_LIMIT_MB, as in tpcc/mssql.t1.yml. See TUNING.md.
+
+compose-file: !include compose.yml
+
+custom_metrics:
+  ycsb_requests:
+    unit: YCSB request
+    sci: true
+
+services:
+  mssql:
+    environment:
+      MSSQL_MEMORY_LIMIT_MB: "5120"   # -> max server memory; ~62% of 8 GB
+  postgres: # unused — empty key removes the service
+  mariadb: # unused — empty key removes the service
+  mysql: # unused — empty key removes the service
+  oracle: # unused — empty key removes the service
+  db2: # unused — empty key removes the service
+  hammerdb: # unused — empty key removes the service
+  benchbase: # load driver; wait for the database to be healthy first
+    depends_on:
+      mssql:
+        condition: service_healthy
+
+# Same benchmark flow as the default (T0) scenario.
+flow: !include ['mssql.yml', 'flow']

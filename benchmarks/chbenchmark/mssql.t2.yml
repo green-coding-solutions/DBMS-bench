@@ -1,0 +1,33 @@
+---
+name: BenchBase MSSQL CH-benCHmark benchmark (T2 workload-aware)
+author: Didi Hoffmann <didi@green-coding.berlin)
+description: >
+  CH-benCHmark (BenchBase, HTAP) on SQL Server, tuning tier T2. The natural T2+ for
+  SQL Server HTAP would be a nonclustered columnstore index on the analytical
+  tables, but creating it post-load needs sqlcmd (absent in the Linux image) and
+  BenchBase won't emit it — so that columnar variant is deferred. Injectable lever
+  is max server memory (set in T1): CONFIG-PARITY (thin) T2 = T1. See TUNING.md.
+
+compose-file: !include compose.yml
+
+custom_metrics:
+  chbenchmark_requests:
+    unit: CH-benCHmark request
+    sci: true
+
+services:
+  mssql:
+    environment:
+      MSSQL_MEMORY_LIMIT_MB: "5120"
+  postgres: # unused — empty key removes the service
+  mariadb: # unused — empty key removes the service
+  mysql: # unused — empty key removes the service
+  oracle: # unused — empty key removes the service
+  db2: # unused — empty key removes the service
+  hammerdb: # unused — empty key removes the service
+  benchbase:
+    depends_on:
+      mssql:
+        condition: service_healthy
+
+flow: !include ['mssql.yml', 'flow']

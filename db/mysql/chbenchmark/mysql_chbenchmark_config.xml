@@ -1,0 +1,125 @@
+<?xml version="1.0"?>
+<!-- BenchBase CH-benCHmark (HTAP: TPC-C + TPC-H) for MySQL (DBMS-bench).
+     Run as the composite -b tpcc,chbenchmark with this single config. Standard
+     CMU BenchBase config; only connection details, scalefactor, terminals and
+     rate are repo-specific. Driven by the benchbase container against the
+     default-configuration MySQL container. -->
+<parameters>
+
+    <!-- Connection details -->
+    <type>MYSQL</type>
+    <driver>com.mysql.cj.jdbc.Driver</driver>
+    <url>jdbc:mysql://mysql_container:3306/benchbase?rewriteBatchedStatements=true&amp;allowPublicKeyRetrieval=true&amp;sslMode=DISABLED</url>
+    <username>mysql</username>
+    <password>mysql</password>
+    <reconnectOnConnectionFailure>true</reconnectOnConnectionFailure>
+    <isolation>TRANSACTION_READ_COMMITTED</isolation>
+    <batchsize>128</batchsize>
+
+    <!-- scalefactor = number of TPC-C warehouses (~100 MB each). -->
+    <scalefactor>10</scalefactor>
+
+    <!-- HTAP: separate terminal pools per workload. The OLTP:OLAP split is the
+         knob to sweep for the paper. Tune to the benchmark host. -->
+    <terminals bench="tpcc">8</terminals>
+    <terminals bench="chbenchmark">2</terminals>
+
+    <works>
+        <work>
+            <time>60</time>
+            <rate>unlimited</rate>
+            <!-- Per-workload weights (each list sums to 100). -->
+            <weights bench="tpcc">45,43,4,4,4</weights>
+            <weights bench="chbenchmark">3,2,3,2,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5</weights>
+        </work>
+    </works>
+
+    <!-- TPC-C transactions (OLTP side) -->
+    <transactiontypes bench="tpcc">
+        <transactiontype>
+            <name>NewOrder</name>
+        </transactiontype>
+        <transactiontype>
+            <name>Payment</name>
+        </transactiontype>
+        <transactiontype>
+            <name>OrderStatus</name>
+        </transactiontype>
+        <transactiontype>
+            <name>Delivery</name>
+        </transactiontype>
+        <transactiontype>
+            <name>StockLevel</name>
+        </transactiontype>
+    </transactiontypes>
+
+    <!-- CH-benCHmark analytical queries Q1..Q22 (OLAP side) -->
+    <transactiontypes bench="chbenchmark">
+        <transactiontype>
+            <name>Q1</name>
+        </transactiontype>
+        <transactiontype>
+            <name>Q2</name>
+        </transactiontype>
+        <transactiontype>
+            <name>Q3</name>
+        </transactiontype>
+        <transactiontype>
+            <name>Q4</name>
+        </transactiontype>
+        <transactiontype>
+            <name>Q5</name>
+        </transactiontype>
+        <transactiontype>
+            <name>Q6</name>
+        </transactiontype>
+        <transactiontype>
+            <name>Q7</name>
+        </transactiontype>
+        <transactiontype>
+            <name>Q8</name>
+        </transactiontype>
+        <transactiontype>
+            <name>Q9</name>
+        </transactiontype>
+        <transactiontype>
+            <name>Q10</name>
+        </transactiontype>
+        <transactiontype>
+            <name>Q11</name>
+        </transactiontype>
+        <transactiontype>
+            <name>Q12</name>
+        </transactiontype>
+        <transactiontype>
+            <name>Q13</name>
+        </transactiontype>
+        <transactiontype>
+            <name>Q14</name>
+        </transactiontype>
+        <transactiontype>
+            <name>Q15</name>
+        </transactiontype>
+        <transactiontype>
+            <name>Q16</name>
+        </transactiontype>
+        <transactiontype>
+            <name>Q17</name>
+        </transactiontype>
+        <transactiontype>
+            <name>Q18</name>
+        </transactiontype>
+        <transactiontype>
+            <name>Q19</name>
+        </transactiontype>
+        <transactiontype>
+            <name>Q20</name>
+        </transactiontype>
+        <transactiontype>
+            <name>Q21</name>
+        </transactiontype>
+        <transactiontype>
+            <name>Q22</name>
+        </transactiontype>
+    </transactiontypes>
+</parameters>

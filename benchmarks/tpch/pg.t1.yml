@@ -1,0 +1,64 @@
+---
+name: HammerDB Postgres TPC-H benchmark (T1 envelope-sized)
+author: Didi Hoffmann <didi@green-coding.berlin)
+description: >
+  TPC-H on PostgreSQL, tuning tier T1 (envelope-sized). Same engine config as
+  tpcc/pg.t1.yml — T1 is hardware-sized, not workload-specialised; OLAP-specific
+  tuning (large work_mem, partitioning, parallel-heavy) is deferred to T2.
+
+compose-file: !include compose.yml
+
+custom_metrics:
+  tpch_queries: # functional unit (work done): number of TPC-H queries completed
+    unit: TPC-H query
+    sci: true
+
+services:
+  # T1 tuning: PostgreSQL rules-of-thumb for the fixed 4-CPU / 8-GB container,
+  # merged over compose.yml. Durability left at default. Identical to the TPC-C
+  # T1 profile (single hardware-sized config, see TUNING.md).
+  postgres:
+    command:
+      - "postgres"
+      - "-c"
+      - "shared_buffers=2GB"
+      - "-c"
+      - "effective_cache_size=6GB"
+      - "-c"
+      - "maintenance_work_mem=512MB"
+      - "-c"
+      - "work_mem=16MB"
+      - "-c"
+      - "wal_buffers=16MB"
+      - "-c"
+      - "min_wal_size=1GB"
+      - "-c"
+      - "max_wal_size=4GB"
+      - "-c"
+      - "checkpoint_completion_target=0.9"
+      - "-c"
+      - "default_statistics_target=100"
+      - "-c"
+      - "random_page_cost=1.1"
+      - "-c"
+      - "effective_io_concurrency=200"
+      - "-c"
+      - "max_worker_processes=4"
+      - "-c"
+      - "max_parallel_workers=4"
+      - "-c"
+      - "max_parallel_workers_per_gather=2"
+      - "-c"
+      - "max_parallel_maintenance_workers=2"
+  mariadb: # empty key will remove the unused service
+  mysql: # empty key will remove the unused service
+  oracle: # empty key will remove the unused service
+  mssql: # empty key will remove the unused service
+  db2: # empty key will remove the unused service
+  hammerdb: # wait for Postgres to finish starting up before benchmarking
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+# Same benchmark flow as the default (T0) scenario.
+flow: !include ['pg.yml', 'flow']

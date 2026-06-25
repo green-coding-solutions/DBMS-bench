@@ -1,0 +1,56 @@
+---
+name: HammerDB Oracle benchmark
+author: Didi Hoffmann <didi@green-coding.berlin)
+description: Benchmarks Oracle Database Free with HammerDB using TPC-C
+
+compose-file: !include compose.yml
+
+custom_metrics:
+  sqlop:
+    unit: TPC-C SQL-op
+    sci: true
+
+services:
+  postgres: # empty key will remove the unused service
+  mariadb: # empty key will remove the unused service
+  mysql: # empty key will remove the unused service
+  mssql: # empty key will remove the unused service
+  db2: # empty key will remove the unused service
+  hammerdb: # wait for Oracle to finish starting up before benchmarking
+    depends_on:
+      oracle:
+        condition: service_healthy
+    # the Oracle Instant Client ships in the hammerdb image but its dir is not on
+    # the loader path, so libclntsh.so can't find libnnz21.so / libclntshcore.so
+    environment:
+      LD_LIBRARY_PATH: /home/instantclient_21_18
+
+flow:
+  - name: Build Warehouses
+    container: hammerdb_container
+    commands:
+      - type: console
+        note: RUN HAMMERDB BUILD
+        command: ./hammerdbcli auto /tmp/repo/db/oracle/tpcc/oracle_tprocc_buildschema.tcl | tee /dev/stderr | awk '/System achieved [0-9]+ NOPM/ { match($0, /System achieved [0-9]+ NOPM/); printf("sqlop=%s\n", substr($0, RSTART+16, RLENGTH-21)) }'
+        shell: sh
+        log-stdout: true
+        read-sci-stdout: true
+  - name: Query Warehouses
+    container: hammerdb_container
+    commands:
+      - type: console
+        note: RUN HAMMERDB SELECTS
+        command: ./hammerdbcli auto /tmp/repo/db/oracle/tpcc/oracle_tprocc_run.tcl | tee /dev/stderr | awk '/System achieved [0-9]+ NOPM/ { match($0, /System achieved [0-9]+ NOPM/); printf("sqlop=%s\n", substr($0, RSTART+16, RLENGTH-21)) }'
+        shell: sh
+        log-stdout: true
+        read-sci-stdout: true
+  - name: Drop Warehouses
+    container: hammerdb_container
+    commands:
+      - type: console
+        note: RUN HAMMERDB DROP
+        command: ./hammerdbcli auto /tmp/repo/db/oracle/tpcc/oracle_tprocc_deleteschema.tcl | tee /dev/stderr | awk '/System achieved [0-9]+ NOPM/ { match($0, /System achieved [0-9]+ NOPM/); printf("sqlop=%s\n", substr($0, RSTART+16, RLENGTH-21)) }'
+        note: DROP HAMMERDB SCHEMA
+        shell: sh
+        log-stdout: true
+        read-sci-stdout: true

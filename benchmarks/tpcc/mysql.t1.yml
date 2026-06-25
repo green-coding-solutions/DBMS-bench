@@ -1,0 +1,42 @@
+---
+name: HammerDB MySQL TPC-C benchmark (T1 envelope-sized)
+author: Didi Hoffmann <didi@green-coding.berlin)
+description: >
+  TPC-C on MySQL, tuning tier T1 (envelope-sized). Stock T0 plus InnoDB
+  rules-of-thumb for the fixed 4-CPU / 8-GB container (buffer pool ~62% RAM,
+  O_DIRECT, SSD I/O capacity). Durability kept at the default
+  (innodb_flush_log_at_trx_commit=1) so the T0->T1 delta is pure resource sizing.
+
+compose-file: !include compose.yml
+
+custom_metrics:
+  sqlop:
+    unit: TPC-C SQL-op
+    sci: true
+
+services:
+  # T1 tuning: flags appended to mysqld by the official image entrypoint (it
+  # prepends `mysqld` when the command starts with `-`). Merged over compose.yml.
+  mysql:
+    command:
+      - "--innodb-buffer-pool-size=5G"           # ~62% of 8 GB
+      - "--innodb-buffer-pool-instances=4"
+      - "--innodb-redo-log-capacity=2G"          # MySQL 8.0.30+/9.x redo sizing
+      - "--innodb-flush-method=O_DIRECT"         # avoid double-buffering w/ page cache
+      - "--innodb-flush-log-at-trx-commit=1"     # full durability (explicit)
+      - "--innodb-io-capacity=2000"              # SSD-class
+      - "--innodb-io-capacity-max=4000"          # SSD-class
+      - "--max-connections=200"
+      - "--table-open-cache=4000"
+  postgres: # empty key will remove the unused service
+  mariadb: # empty key will remove the unused service
+  oracle: # empty key will remove the unused service
+  mssql: # empty key will remove the unused service
+  db2: # empty key will remove the unused service
+  hammerdb: # wait for MySQL to finish starting up before benchmarking
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+# Same benchmark flow as the default (T0) scenario.
+flow: !include ['mysql.yml', 'flow']

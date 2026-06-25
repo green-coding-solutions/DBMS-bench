@@ -1,0 +1,32 @@
+---
+name: HammerDB MSSQL TPC-C benchmark (T2 workload-aware)
+author: Didi Hoffmann <didi@green-coding.berlin)
+description: >
+  TPC-C on SQL Server, tuning tier T2 (workload-aware, OLTP). For OLTP the only
+  injectable SQL Server lever is max server memory (already set in T1); finer OLTP
+  tuning (MAXDOP=1, cost threshold) needs sqlcmd, which the Linux server image
+  lacks. So this is intentionally a CONFIG-PARITY (thin) T2 = T1 for SQL Server on
+  TPC-C. See TUNING.md.
+
+compose-file: !include compose.yml
+
+custom_metrics:
+  sqlop:
+    unit: TPC-C SQL-op
+    sci: true
+
+services:
+  mssql:
+    environment:
+      MSSQL_MEMORY_LIMIT_MB: "5120"
+  postgres: # empty key will remove the unused service
+  mariadb: # empty key will remove the unused service
+  mysql: # empty key will remove the unused service
+  oracle: # empty key will remove the unused service
+  db2: # empty key will remove the unused service
+  hammerdb:
+    depends_on:
+      mssql:
+        condition: service_healthy
+
+flow: !include ['mssql.yml', 'flow']

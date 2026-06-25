@@ -1,0 +1,118 @@
+---
+name: HammerDB Postgres TPC-H benchmark (T2 workload-aware)
+author: Didi Hoffmann <didi@green-coding.berlin)
+description: >
+  TPC-H on PostgreSQL, tuning tier T2 (workload-aware, common/row-store design).
+  Builds on T1's envelope sizing with OLAP-specific config (large work_mem,
+  per-query parallelism = core count, higher statistics target, JIT), a raised
+  driver parallel degree (pg_tproch_run.t2.tcl), and a post-load "optimize"
+  step (curated analytical indexes + ANALYZE). PostgreSQL has no built-in
+  config/index advisor, so per the chosen policy it gets curated tuning only.
+  Durability left at default. See TUNING.md.
+  NOTE: the curated CREATE INDEX names assume HammerDB's standard TPC-H schema
+  (lineitem/orders/... lowercase in the default schema); they are IF NOT EXISTS +
+  non-fatal, but VERIFY against the built schema on first run.
+
+compose-file: !include compose.yml
+
+custom_metrics:
+  tpch_queries:
+    unit: TPC-H query
+    sci: true
+
+services:
+  # T2 = T1 envelope sizing + OLAP-specific config (vs T1: work_mem 16MB->256MB,
+  # per-gather workers 2->4, statistics target 100->200, JIT on). vu=1 for TPC-H,
+  # so a large work_mem is safe within the 8 GB container.
+  postgres:
+    command:
+      - "postgres"
+      - "-c"
+      - "shared_buffers=2GB"
+      - "-c"
+      - "effective_cache_size=6GB"
+      - "-c"
+      - "maintenance_work_mem=512MB"
+      - "-c"
+      - "work_mem=256MB"                       # T2: large sorts/hashes for OLAP
+      - "-c"
+      - "wal_buffers=16MB"
+      - "-c"
+      - "min_wal_size=1GB"
+      - "-c"
+      - "max_wal_size=4GB"
+      - "-c"
+      - "checkpoint_completion_target=0.9"
+      - "-c"
+      - "default_statistics_target=200"        # T2: better plans on big tables
+      - "-c"
+      - "random_page_cost=1.1"
+      - "-c"
+      - "effective_io_concurrency=200"
+      - "-c"
+      - "max_worker_processes=4"
+      - "-c"
+      - "max_parallel_workers=4"
+      - "-c"
+      - "max_parallel_workers_per_gather=4"    # T2: full per-query parallelism
+      - "-c"
+      - "max_parallel_maintenance_workers=2"
+      - "-c"
+      - "jit=on"                               # T2: JIT helps long analytical queries
+  mariadb: # empty key will remove the unused service
+  mysql: # empty key will remove the unused service
+  oracle: # empty key will remove the unused service
+  mssql: # empty key will remove the unused service
+  db2: # empty key will remove the unused service
+  hammerdb: # wait for Postgres to finish starting up before benchmarking
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+# T2 changes the flow (a post-load optimize step is inserted, and the run step
+# uses the t2 driver script), so the flow is defined here rather than shared.
+flow:
+  - name: Build Schema
+    container: hammerdb_container
+    commands:
+      - type: console
+        note: RUN HAMMERDB BUILD
+        command: ./hammerdbcli auto /tmp/repo/db/pg/tpch/pg_tproch_buildschema.tcl | tee /dev/stderr | awk '/query [0-9]+ completed in/{q++} END{if(q>0){printf("tpch_queries=%d\n",q)}}'
+        shell: sh
+        log-stdout: true
+        read-sci-stdout: true
+  - name: Optimize schema (T2)
+    container: postgres_container
+    commands:
+      - type: console
+        note: T2 CURATED ANALYTICAL INDEXES + ANALYZE (non-fatal; VERIFY names)
+        command: |
+          psql "postgresql://postgres:postgres@localhost:5432/tpch" -v ON_ERROR_STOP=0 <<'SQL'
+          CREATE INDEX IF NOT EXISTS t2_l_shipdate ON lineitem (l_shipdate);
+          CREATE INDEX IF NOT EXISTS t2_l_partkey  ON lineitem (l_partkey);
+          CREATE INDEX IF NOT EXISTS t2_l_suppkey  ON lineitem (l_suppkey);
+          CREATE INDEX IF NOT EXISTS t2_o_orderdate ON orders (o_orderdate);
+          CREATE INDEX IF NOT EXISTS t2_o_custkey   ON orders (o_custkey);
+          CREATE INDEX IF NOT EXISTS t2_ps_suppkey  ON partsupp (ps_suppkey);
+          ANALYZE;
+          SQL
+        shell: bash
+        log-stdout: true
+  - name: Run Queries
+    container: hammerdb_container
+    commands:
+      - type: console
+        note: RUN HAMMERDB QUERIES (T2 — parallel degree 4)
+        command: ./hammerdbcli auto /tmp/repo/db/pg/tpch/pg_tproch_run.t2.tcl | tee /dev/stderr | awk '/query [0-9]+ completed in/{q++} END{if(q>0){printf("tpch_queries=%d\n",q)}}'
+        shell: sh
+        log-stdout: true
+        read-sci-stdout: true
+  - name: Drop Schema
+    container: hammerdb_container
+    commands:
+      - type: console
+        note: RUN HAMMERDB DROP
+        command: ./hammerdbcli auto /tmp/repo/db/pg/tpch/pg_tproch_deleteschema.tcl | tee /dev/stderr | awk '/query [0-9]+ completed in/{q++} END{if(q>0){printf("tpch_queries=%d\n",q)}}'
+        shell: sh
+        log-stdout: true
+        read-sci-stdout: true

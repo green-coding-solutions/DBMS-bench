@@ -1,0 +1,34 @@
+---
+name: HammerDB MSSQL TPC-C benchmark (T1 envelope-sized)
+author: Didi Hoffmann <didi@green-coding.berlin)
+description: >
+  TPC-C on Microsoft SQL Server, tuning tier T1 (envelope-sized). SQL Server
+  manages its own buffer cache, so the dominant lever is "max server memory",
+  set via the image's MSSQL_MEMORY_LIMIT_MB env (5120 MB = ~62% of the 8-GB
+  container, leaving headroom for SQLOS/thread overhead to avoid cgroup OOM).
+  MAXDOP / cost-threshold are workload-specific and deferred to T2.
+
+compose-file: !include compose.yml
+
+custom_metrics:
+  sqlop:
+    unit: TPC-C SQL-op
+    sci: true
+
+services:
+  # T1 tuning: merged onto compose.yml's mssql environment (ACCEPT_EULA etc. kept).
+  mssql:
+    environment:
+      MSSQL_MEMORY_LIMIT_MB: "5120"   # -> max server memory; ~62% of 8 GB
+  postgres: # empty key will remove the unused service
+  mariadb: # empty key will remove the unused service
+  mysql: # empty key will remove the unused service
+  oracle: # empty key will remove the unused service
+  db2: # empty key will remove the unused service
+  hammerdb: # wait for SQL Server to finish starting up before benchmarking
+    depends_on:
+      mssql:
+        condition: service_healthy
+
+# Same benchmark flow as the default (T0) scenario.
+flow: !include ['mssql.yml', 'flow']

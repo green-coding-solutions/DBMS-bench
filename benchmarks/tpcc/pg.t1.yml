@@ -1,0 +1,67 @@
+---
+name: HammerDB Postgres TPC-C benchmark (T1 envelope-sized)
+author: Didi Hoffmann <didi@green-coding.berlin)
+description: >
+  TPC-C on PostgreSQL, tuning tier T1 (envelope-sized). Stock T0 config plus
+  PostgreSQL's own rules-of-thumb sized to the fixed 4-CPU / 8-GB container
+  (shared_buffers=25% RAM, effective_cache_size=75% RAM, SSD I/O costs, parallel
+  workers = core count). Durability is left at the default (synchronous_commit=on,
+  fsync=on) so the comparison against T0 isolates resource sizing, not safety.
+
+compose-file: !include compose.yml
+
+custom_metrics:
+  sqlop:
+    unit: TPC-C SQL-op
+    sci: true
+
+services:
+  # T1 tuning: passed as `postgres -c key=val` flags, which the official image's
+  # entrypoint forwards verbatim. Merged over compose.yml's postgres service, so
+  # image / cpus / mem_limit / env / healthcheck are inherited unchanged.
+  postgres:
+    command:
+      - "postgres"
+      - "-c"
+      - "shared_buffers=2GB"            # 25% of 8 GB (PostgreSQL standard)
+      - "-c"
+      - "effective_cache_size=6GB"      # planner hint: ~75% of RAM
+      - "-c"
+      - "maintenance_work_mem=512MB"
+      - "-c"
+      - "work_mem=16MB"                 # neutral; TPC-H raises this in T2
+      - "-c"
+      - "wal_buffers=16MB"
+      - "-c"
+      - "min_wal_size=1GB"
+      - "-c"
+      - "max_wal_size=4GB"
+      - "-c"
+      - "checkpoint_completion_target=0.9"
+      - "-c"
+      - "default_statistics_target=100"
+      - "-c"
+      - "random_page_cost=1.1"          # SSD-class storage
+      - "-c"
+      - "effective_io_concurrency=200"  # SSD-class storage
+      - "-c"
+      - "max_worker_processes=4"        # = cpus
+      - "-c"
+      - "max_parallel_workers=4"        # = cpus
+      - "-c"
+      - "max_parallel_workers_per_gather=2"
+      - "-c"
+      - "max_parallel_maintenance_workers=2"
+  mariadb: # empty key will remove the unused service
+  mysql: # empty key will remove the unused service
+  oracle: # empty key will remove the unused service
+  mssql: # empty key will remove the unused service
+  db2: # empty key will remove the unused service
+  hammerdb: # wait for Postgres to finish starting up before benchmarking
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+# Same benchmark flow as the default (T0) scenario: tiers differ only in engine
+# config, never in the workload. Single source of truth lives in pg.yml.
+flow: !include ['pg.yml', 'flow']

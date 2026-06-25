@@ -1,0 +1,61 @@
+---
+name: HammerDB MSSQL TPC-H benchmark (T2+ columnar)
+author: Didi Hoffmann <didi@green-coding.berlin)
+description: >
+  TPC-H on Microsoft SQL Server, tuning sub-tier T2+ (COLUMNAR). Same as
+  mssql.t2.yml but the schema is built with clustered columnstore enabled
+  (mssql_tproch_buildschema.t2col.tcl, mssqls_colstore true) — the strongest
+  analytical storage design SQL Server offers. This is the "best per engine"
+  variant; compare it against the row-store T2 to show the columnar energy floor.
+  See TUNING.md.
+
+compose-file: !include compose.yml
+
+custom_metrics:
+  tpch_queries:
+    unit: TPC-H query
+    sci: true
+
+services:
+  mssql:
+    environment:
+      MSSQL_MEMORY_LIMIT_MB: "5120"   # T1 max server memory (~62% of 8 GB)
+  postgres: # empty key will remove the unused service
+  mariadb: # empty key will remove the unused service
+  mysql: # empty key will remove the unused service
+  oracle: # empty key will remove the unused service
+  db2: # empty key will remove the unused service
+  hammerdb: # wait for SQL Server to finish starting up before benchmarking
+    depends_on:
+      mssql:
+        condition: service_healthy
+
+# Columnar build + maxdop=4 run.
+flow:
+  - name: Build Schema
+    container: hammerdb_container
+    commands:
+      - type: console
+        note: RUN HAMMERDB BUILD (T2+ — clustered columnstore)
+        command: ./hammerdbcli auto /tmp/repo/db/mssql/tpch/mssql_tproch_buildschema.t2col.tcl | tee /dev/stderr | awk '/query [0-9]+ completed in/{q++} END{if(q>0){printf("tpch_queries=%d\n",q)}}'
+        shell: sh
+        log-stdout: true
+        read-sci-stdout: true
+  - name: Run Queries
+    container: hammerdb_container
+    commands:
+      - type: console
+        note: RUN HAMMERDB QUERIES (T2+ — maxdop 4, columnstore)
+        command: ./hammerdbcli auto /tmp/repo/db/mssql/tpch/mssql_tproch_run.t2.tcl | tee /dev/stderr | awk '/query [0-9]+ completed in/{q++} END{if(q>0){printf("tpch_queries=%d\n",q)}}'
+        shell: sh
+        log-stdout: true
+        read-sci-stdout: true
+  - name: Drop Schema
+    container: hammerdb_container
+    commands:
+      - type: console
+        note: RUN HAMMERDB DROP
+        command: ./hammerdbcli auto /tmp/repo/db/mssql/tpch/mssql_tproch_deleteschema.tcl | tee /dev/stderr | awk '/query [0-9]+ completed in/{q++} END{if(q>0){printf("tpch_queries=%d\n",q)}}'
+        shell: sh
+        log-stdout: true
+        read-sci-stdout: true

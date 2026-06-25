@@ -1,0 +1,69 @@
+---
+name: HammerDB Postgres TPC-C benchmark (T2 workload-aware)
+author: Didi Hoffmann <didi@green-coding.berlin)
+description: >
+  TPC-C on PostgreSQL, tuning tier T2 (workload-aware, OLTP). T1 envelope sizing +
+  OLTP-favourable config: more aggressive autovacuum to keep up with TPC-C's heavy
+  update/churn (vs T1 defaults). TPC-C is fully indexed by HammerDB and isn't
+  parallelised, so T2 here is config-only and shares the T0 flow. Durability left
+  at default. See TUNING.md.
+
+compose-file: !include compose.yml
+
+custom_metrics:
+  sqlop:
+    unit: TPC-C SQL-op
+    sci: true
+
+services:
+  postgres:
+    command:
+      - "postgres"
+      - "-c"
+      - "shared_buffers=2GB"
+      - "-c"
+      - "effective_cache_size=6GB"
+      - "-c"
+      - "maintenance_work_mem=512MB"
+      - "-c"
+      - "work_mem=16MB"
+      - "-c"
+      - "wal_buffers=16MB"
+      - "-c"
+      - "min_wal_size=1GB"
+      - "-c"
+      - "max_wal_size=4GB"
+      - "-c"
+      - "checkpoint_completion_target=0.9"
+      - "-c"
+      - "default_statistics_target=100"
+      - "-c"
+      - "random_page_cost=1.1"
+      - "-c"
+      - "effective_io_concurrency=200"
+      - "-c"
+      - "max_worker_processes=4"
+      - "-c"
+      - "max_parallel_workers=4"
+      - "-c"
+      - "max_parallel_workers_per_gather=2"
+      - "-c"
+      - "max_parallel_maintenance_workers=2"
+      - "-c"
+      - "autovacuum_vacuum_scale_factor=0.05"   # T2: keep up with TPC-C churn
+      - "-c"
+      - "autovacuum_vacuum_cost_limit=2000"      # T2: faster autovacuum
+      - "-c"
+      - "autovacuum_naptime=10s"                 # T2: vacuum more often
+  mariadb: # empty key will remove the unused service
+  mysql: # empty key will remove the unused service
+  oracle: # empty key will remove the unused service
+  mssql: # empty key will remove the unused service
+  db2: # empty key will remove the unused service
+  hammerdb:
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+# OLTP T2 is config-only (no schema/parallelism change), so share the T0 flow.
+flow: !include ['pg.yml', 'flow']

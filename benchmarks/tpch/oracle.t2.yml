@@ -1,0 +1,96 @@
+---
+name: HammerDB Oracle TPC-H benchmark (T2 workload-aware)
+author: Didi Hoffmann <didi@green-coding.berlin)
+description: >
+  TPC-H on Oracle Database Free, tuning tier T2 (workload-aware). T1 SGA/PGA tune
+  (prepended) + query parallel degree 4 (oracle_tproch_run.t2.tcl) + a post-load
+  optimize step (curated indexes + DBMS_STATS.GATHER_SCHEMA_STATS). Oracle has no
+  usable native advisor on Free, so it is curated-only.
+  CAVEAT: Oracle Free is licence-capped at ~2 GB RAM / 2 CPU threads, so degree=4
+  is bounded by the edition and the T1->T2 delta is expected to be small. VERIFY
+  the optimize step's stdout on first run (index names, stats). See TUNING.md.
+
+compose-file: !include compose.yml
+
+custom_metrics:
+  tpch_queries:
+    unit: TPC-H query
+    sci: true
+
+services:
+  # oracle service kept as-is from compose.yml; tuning applied at runtime.
+  postgres: # empty key will remove the unused service
+  mariadb: # empty key will remove the unused service
+  mysql: # empty key will remove the unused service
+  mssql: # empty key will remove the unused service
+  db2: # empty key will remove the unused service
+  hammerdb:
+    depends_on:
+      oracle:
+        condition: service_healthy
+    environment:
+      LD_LIBRARY_PATH: /home/instantclient_21_18
+
+# T1 SGA/PGA sizing runs first (Oracle has no command-flag config).
+flow-prepend:
+  - name: Tune Oracle (T1 envelope-sized)
+    container: oracle_container
+    commands:
+      - type: console
+        note: APPLY T1 SGA/PGA SIZING (capped by Oracle Free 2 GB limit)
+        command: |
+          i=0; while [ $i -lt 30 ]; do
+            printf 'WHENEVER SQLERROR CONTINUE\nALTER SYSTEM SET sga_target=1300M SCOPE=BOTH;\nALTER SYSTEM SET pga_aggregate_target=500M SCOPE=BOTH;\nEXIT\n' \
+              | sqlplus -s -L sys/oracle@//localhost:1521/FREE as sysdba && break
+            i=$((i+1)); sleep 3
+          done; true
+        shell: bash
+        log-stdout: true
+
+flow:
+  - name: Build Schema
+    container: hammerdb_container
+    commands:
+      - type: console
+        note: RUN HAMMERDB BUILD
+        command: ./hammerdbcli auto /tmp/repo/db/oracle/tpch/oracle_tproch_buildschema.tcl | tee /dev/stderr | awk '/query [0-9]+ completed in/{q++} END{if(q>0){printf("tpch_queries=%d\n",q)}}'
+        shell: sh
+        log-stdout: true
+        read-sci-stdout: true
+  - name: Optimize schema (T2)
+    container: oracle_container
+    commands:
+      - type: console
+        note: T2 CURATED INDEXES + GATHER STATS (non-fatal; VERIFY names)
+        command: |
+          sqlplus -s -L system/oracle@//localhost:1521/FREEPDB1 <<'SQL' || true
+          WHENEVER SQLERROR CONTINUE
+          CREATE INDEX tpch.t2_l_shipdate ON tpch.lineitem(l_shipdate);
+          CREATE INDEX tpch.t2_l_partkey ON tpch.lineitem(l_partkey);
+          CREATE INDEX tpch.t2_l_suppkey ON tpch.lineitem(l_suppkey);
+          CREATE INDEX tpch.t2_o_orderdate ON tpch.orders(o_orderdate);
+          CREATE INDEX tpch.t2_o_custkey ON tpch.orders(o_custkey);
+          CREATE INDEX tpch.t2_ps_suppkey ON tpch.partsupp(ps_suppkey);
+          EXEC DBMS_STATS.GATHER_SCHEMA_STATS(ownname => 'TPCH', degree => 4);
+          EXIT
+          SQL
+        shell: bash
+        log-stdout: true
+  - name: Run Queries
+    container: hammerdb_container
+    commands:
+      - type: console
+        note: RUN HAMMERDB QUERIES (T2 — parallel degree 4)
+        command: ./hammerdbcli auto /tmp/repo/db/oracle/tpch/oracle_tproch_run.t2.tcl | tee /dev/stderr | awk '/query [0-9]+ completed in/{q++} END{if(q>0){printf("tpch_queries=%d\n",q)}}'
+        shell: sh
+        log-stdout: true
+        read-sci-stdout: true
+  - name: Drop Schema
+    container: hammerdb_container
+    commands:
+      - type: console
+        note: RUN HAMMERDB DROP
+        command: ./hammerdbcli auto /tmp/repo/db/oracle/tpch/oracle_tproch_deleteschema.tcl | tee /dev/stderr | awk '/query [0-9]+ completed in/{q++} END{if(q>0){printf("tpch_queries=%d\n",q)}}'
+        shell: sh
+        log-stdout: true
+        read-sci-stdout: true

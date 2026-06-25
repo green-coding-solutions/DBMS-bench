@@ -1,0 +1,62 @@
+---
+name: BenchBase PostgreSQL Wikipedia benchmark (T1 envelope-sized)
+author: Didi Hoffmann <didi@green-coding.berlin)
+description: >
+  Wikipedia (BenchBase) on PostgreSQL, tuning tier T1 (envelope-sized). Same
+  hardware-sized engine config as tpcc/pg.t1.yml; durability left at default.
+  See TUNING.md.
+
+compose-file: !include compose.yml
+
+custom_metrics:
+  wikipedia_requests:
+    unit: Wikipedia request
+    sci: true
+
+services:
+  postgres:
+    command:
+      - "postgres"
+      - "-c"
+      - "shared_buffers=2GB"
+      - "-c"
+      - "effective_cache_size=6GB"
+      - "-c"
+      - "maintenance_work_mem=512MB"
+      - "-c"
+      - "work_mem=16MB"
+      - "-c"
+      - "wal_buffers=16MB"
+      - "-c"
+      - "min_wal_size=1GB"
+      - "-c"
+      - "max_wal_size=4GB"
+      - "-c"
+      - "checkpoint_completion_target=0.9"
+      - "-c"
+      - "default_statistics_target=100"
+      - "-c"
+      - "random_page_cost=1.1"
+      - "-c"
+      - "effective_io_concurrency=200"
+      - "-c"
+      - "max_worker_processes=4"
+      - "-c"
+      - "max_parallel_workers=4"
+      - "-c"
+      - "max_parallel_workers_per_gather=2"
+      - "-c"
+      - "max_parallel_maintenance_workers=2"
+  mariadb: # unused — empty key removes the service
+  mysql: # unused — empty key removes the service
+  oracle: # unused — empty key removes the service
+  mssql: # unused — empty key removes the service
+  db2: # unused — empty key removes the service
+  hammerdb: # unused — empty key removes the service
+  benchbase: # load driver; wait for the database to be healthy first
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+# Same benchmark flow as the default (T0) scenario.
+flow: !include ['pg.yml', 'flow']

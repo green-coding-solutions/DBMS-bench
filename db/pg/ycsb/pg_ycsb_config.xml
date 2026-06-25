@@ -1,0 +1,53 @@
+<?xml version="1.0"?>
+<!-- BenchBase YCSB workload for PostgreSQL (DBMS-bench).
+     Standard CMU BenchBase config; only connection details, scalefactor,
+     terminals and rate are repo-specific. Driven by the benchbase container
+     against the default-configuration PostgreSQL container. -->
+<parameters>
+
+    <!-- Connection details -->
+    <type>POSTGRES</type>
+    <driver>org.postgresql.Driver</driver>
+    <url>jdbc:postgresql://postgres_container:5432/benchbase?sslmode=disable&amp;ApplicationName=ycsb&amp;reWriteBatchedInserts=true</url>
+    <username>postgres</username>
+    <password>postgres</password>
+    <reconnectOnConnectionFailure>true</reconnectOnConnectionFailure>
+    <isolation>TRANSACTION_READ_COMMITTED</isolation>
+    <batchsize>128</batchsize>
+
+    <!-- YCSB scalefactor = rows in USERTABLE / 1000 (sf=1000 -> ~1M rows, ~1GB; exceeds default buffer pools so tuning shows). -->
+    <scalefactor>1000</scalefactor>
+
+    <!-- Run the mix at max throughput for 60s on a fixed terminal count so
+         every engine sees the same load. Tune <terminals> to the benchmark host. -->
+    <terminals>8</terminals>
+    <works>
+        <work>
+            <time>60</time>
+            <rate>unlimited</rate>
+            <!-- Default OLTP-Bench mix: 50 read / 5 insert / 15 scan / 10 update / 10 delete / 10 read-modify-write. -->
+            <weights>50,5,15,10,10,10</weights>
+        </work>
+    </works>
+
+    <transactiontypes>
+        <transactiontype>
+            <name>ReadRecord</name>
+        </transactiontype>
+        <transactiontype>
+            <name>InsertRecord</name>
+        </transactiontype>
+        <transactiontype>
+            <name>ScanRecord</name>
+        </transactiontype>
+        <transactiontype>
+            <name>UpdateRecord</name>
+        </transactiontype>
+        <transactiontype>
+            <name>DeleteRecord</name>
+        </transactiontype>
+        <transactiontype>
+            <name>ReadModifyWriteRecord</name>
+        </transactiontype>
+    </transactiontypes>
+</parameters>

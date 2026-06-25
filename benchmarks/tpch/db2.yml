@@ -1,0 +1,65 @@
+---
+name: HammerDB Db2 TPC-H benchmark
+author: Didi Hoffmann <didi@green-coding.berlin)
+description: Benchmarks IBM Db2 with HammerDB using TPC-H
+
+compose-file: !include compose.yml
+
+custom_metrics:
+  tpch_queries: # functional unit (work done): number of TPC-H queries completed
+    unit: TPC-H query
+    sci: true
+
+services:
+  postgres: # empty key will remove the unused service
+  mariadb: # empty key will remove the unused service
+  mysql: # empty key will remove the unused service
+  oracle: # empty key will remove the unused service
+  mssql: # empty key will remove the unused service
+  db2: # this benchmark needs the tpch database instead of the default tpcc
+    environment:
+      LICENSE: accept
+      DB2INST1_PASSWORD: ibmdb2
+      DBNAME: tpch
+  hammerdb: # Db2-enabled image (build/push with ./db/db2/build-image.sh); wait for Db2
+    image: ribalba/hammerdb-db2:latest
+    depends_on:
+      db2:
+        condition: service_healthy
+
+flow:
+  - name: Catalog Db2
+    container: hammerdb_container
+    commands:
+      - type: console
+        note: CATALOG REMOTE DB2
+        command: chmod -R u+rwX /database/config/db2inst1/sqllib 2>/dev/null; rm -f /database/config/db2inst1/sqllib/db2nodes.cfg; echo "0 $(hostname) 0" > /database/config/db2inst1/sqllib/db2nodes.cfg && . /database/config/db2inst1/sqllib/db2profile && { db2 uncatalog database tpch; db2 uncatalog node db2node; true; } && db2 catalog tcpip node db2node remote db2_container server 50000 && db2 catalog database tpch at node db2node && db2 terminate && (i=0; while [ $i -lt 30 ]; do db2 connect to tpch >/dev/null 2>&1 && db2 connect reset >/dev/null 2>&1 && break; i=$((i+1)); sleep 3; done)
+        shell: sh
+        log-stdout: true
+  - name: Build Schema
+    container: hammerdb_container
+    commands:
+      - type: console
+        note: RUN HAMMERDB BUILD
+        command: . /database/config/db2inst1/sqllib/db2profile && cd /home/HammerDB-5.0 && ./hammerdbcli auto /tmp/repo/db/db2/tpch/db2_tproch_buildschema.tcl | tee /dev/stderr | awk '/query [0-9]+ completed in/{q++} END{if(q>0){printf("tpch_queries=%d\n",q)}}'
+        shell: sh
+        log-stdout: true
+        read-sci-stdout: true
+  - name: Run Queries
+    container: hammerdb_container
+    commands:
+      - type: console
+        note: RUN HAMMERDB QUERIES
+        command: . /database/config/db2inst1/sqllib/db2profile && cd /home/HammerDB-5.0 && ./hammerdbcli auto /tmp/repo/db/db2/tpch/db2_tproch_run.tcl | tee /dev/stderr | awk '/query [0-9]+ completed in/{q++} END{if(q>0){printf("tpch_queries=%d\n",q)}}'
+        shell: sh
+        log-stdout: true
+        read-sci-stdout: true
+  - name: Drop Schema
+    container: hammerdb_container
+    commands:
+      - type: console
+        note: RUN HAMMERDB DROP
+        command: . /database/config/db2inst1/sqllib/db2profile && cd /home/HammerDB-5.0 && ./hammerdbcli auto /tmp/repo/db/db2/tpch/db2_tproch_deleteschema.tcl | tee /dev/stderr | awk '/query [0-9]+ completed in/{q++} END{if(q>0){printf("tpch_queries=%d\n",q)}}'
+        shell: sh
+        log-stdout: true
+        read-sci-stdout: true

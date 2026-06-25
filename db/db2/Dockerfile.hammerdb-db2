@@ -1,0 +1,47 @@
+# HammerDB image that can drive a *remote* IBM Db2 server.
+#
+# The stock tpcorg/hammerdb image ships HammerDB's db2tcl binding but no Db2
+# client, and HammerDB's db2tcl needs the full Db2 client libs (the free
+# lightweight CLI driver is missing the sqlefrce_api symbol). HammerDB also
+# connects to Db2 via a *catalogued* database (no host/port), and the build
+# calls db2_create_db -- an instance operation -- so the client needs a real
+# Db2 instance, not just libraries.
+#
+# Db2's own binaries are built for RHEL/glibc 2.34 and run fine on the Ubuntu
+# 24.04 / glibc 2.39 hammerdb base (backward compatible), but the reverse is
+# not true (HammerDB needs >= glibc 2.38), so this image MUST be based on
+# hammerdb and have Db2 added to it -- not the other way around.
+#
+# The Db2 install, an initialised client instance, the global registry and the
+# /etc/services entries are lifted from the icr.io/db2_community/db2 image by
+# build-image.sh and dropped into the build context before this builds.
+ARG HDB_IMAGE=tpcorg/hammerdb:latest
+FROM ${HDB_IMAGE}
+
+# Db2 runtime prerequisites available on Ubuntu 24.04
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      libpam0g libxml2 libstdc++6 libaudit1 libcap-ng0 libeconf0 liblzma5 \
+      zlib1g libcrypt1 libnuma1 libaio1t64 ksh \
+ && ln -sf /usr/lib/x86_64-linux-gnu/libaio.so.1t64 /usr/lib/x86_64-linux-gnu/libaio.so.1 \
+ && rm -rf /var/lib/apt/lists/*
+
+# Free uid/gid 1000 (Ubuntu's 'ubuntu' user) and recreate the Db2 instance users
+# with the same ids the instance files were created with.
+RUN userdel -r ubuntu 2>/dev/null || true; \
+    groupadd -g 1000 db2iadm1; \
+    groupadd -g 1001 db2fadm1; \
+    useradd -u 1000 -g db2iadm1 -d /database/config/db2inst1 -s /bin/bash db2inst1; \
+    useradd -u 1001 -g db2fadm1 -m -d /home/db2fenc1 -s /bin/bash db2fenc1
+
+COPY db2-install /opt/ibm/db2/V12.1
+COPY --chown=1000:1000 db2inst1-home /database/config/db2inst1
+COPY global.reg /var/db2/global.reg
+COPY db2-services /tmp/db2-services
+RUN cat /tmp/db2-services >> /etc/services && rm /tmp/db2-services; \
+    chmod -R a+rX /opt/ibm/db2/V12.1 /home/HammerDB-5.0; \
+    chmod -R u+rwX /database/config/db2inst1   # instance must be writable (e.g. db2nodes.cfg is rewritten at runtime)
+
+# Flow commands run as db2inst1 and `. db2profile` to get libdb2 on the loader
+# path and the Db2 CLP on PATH.
+USER db2inst1
+WORKDIR /home/HammerDB-5.0

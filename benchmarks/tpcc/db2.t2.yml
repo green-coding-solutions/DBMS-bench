@@ -1,0 +1,47 @@
+---
+name: HammerDB Db2 TPC-C benchmark (T2 workload-aware)
+author: Didi Hoffmann <didi@green-coding.berlin)
+description: >
+  TPC-C on IBM Db2, tuning tier T2 (workload-aware, OLTP). T1 STMM self-tuning
+  (prepended). Db2 already self-tunes memory and TPC-C is fully indexed, so this is
+  a CONFIG-PARITY (thin) T2 = T1 for Db2 on TPC-C; the meaningful Db2 levers show
+  up on the analytical tiers (see db2.t2col for TPC-H BLU). See TUNING.md.
+
+compose-file: !include compose.yml
+
+custom_metrics:
+  sqlop:
+    unit: TPC-C SQL-op
+    sci: true
+
+services:
+  # db2 kept as-is from compose.yml (DBNAME=tpcc default).
+  postgres: # empty key will remove the unused service
+  mariadb: # empty key will remove the unused service
+  mysql: # empty key will remove the unused service
+  oracle: # empty key will remove the unused service
+  mssql: # empty key will remove the unused service
+  hammerdb:
+    image: ribalba/hammerdb-db2:latest
+    depends_on:
+      db2:
+        condition: service_healthy
+
+flow-prepend:
+  - name: Tune Db2 (T1 envelope-sized)
+    container: db2_container
+    commands:
+      - type: console
+        note: ENSURE STMM SELF-TUNING + AUTOMATIC MEMORY (online)
+        command: |
+          su -l db2inst1 -c '
+            i=0; while [ $i -lt 40 ]; do db2 connect to tpcc >/dev/null 2>&1 && break; i=$((i+1)); sleep 3; done
+            db2 connect to tpcc
+            db2 update db cfg for tpcc using SELF_TUNING_MEM ON IMMEDIATE
+            db2 update db cfg for tpcc using DATABASE_MEMORY AUTOMATIC IMMEDIATE
+            db2 connect reset
+          ' || true
+        shell: bash
+        log-stdout: true
+
+flow: !include ['db2.yml', 'flow']

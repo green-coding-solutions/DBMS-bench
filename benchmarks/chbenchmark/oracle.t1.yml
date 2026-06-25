@@ -1,0 +1,47 @@
+---
+name: BenchBase Oracle Database Free CH-benCHmark benchmark (T1 envelope-sized)
+author: Didi Hoffmann <didi@green-coding.berlin)
+description: >
+  CH-benCHmark HTAP (TPC-C + TPC-H, BenchBase) on Oracle Database Free, tuning tier T1
+  (envelope-sized). SGA/PGA sized by a prepended ALTER SYSTEM step, as in tpcc/oracle.t1.yml.
+  CAVEAT: Oracle Free is licence-capped at ~2 GB RAM / 2 CPU threads, so the
+  T0->T1 delta is expected to be small; ALTERs are skipped under Automatic
+  Memory Management. VERIFY on first run; see TUNING.md.
+
+compose-file: !include compose.yml
+
+custom_metrics:
+  chbenchmark_requests:
+    unit: CH-benCHmark request
+    sci: true
+
+services:
+  # oracle service intentionally NOT listed -> kept as-is from compose.yml.
+  postgres: # unused — empty key removes the service
+  mariadb: # unused — empty key removes the service
+  mysql: # unused — empty key removes the service
+  mssql: # unused — empty key removes the service
+  db2: # unused — empty key removes the service
+  hammerdb: # unused — empty key removes the service
+  benchbase: # load driver; wait for the database to be healthy first
+    depends_on:
+      oracle:
+        condition: service_healthy
+
+flow-prepend:
+  - name: Tune Oracle (T1 envelope-sized)
+    container: oracle_container
+    commands:
+      - type: console
+        note: APPLY T1 SGA/PGA SIZING (capped by Oracle Free 2 GB limit)
+        command: |
+          i=0; while [ $i -lt 30 ]; do
+            printf 'WHENEVER SQLERROR CONTINUE\nALTER SYSTEM SET sga_target=1300M SCOPE=BOTH;\nALTER SYSTEM SET pga_aggregate_target=500M SCOPE=BOTH;\nSHOW PARAMETER sga_target\nSHOW PARAMETER pga_aggregate_target\nEXIT\n' \
+              | sqlplus -s -L sys/oracle@//localhost:1521/FREE as sysdba && break
+            i=$((i+1)); sleep 3
+          done; true
+        shell: bash
+        log-stdout: true
+
+# Same benchmark flow as the default (T0) scenario.
+flow: !include ['oracle.yml', 'flow']

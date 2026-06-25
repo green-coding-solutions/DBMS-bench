@@ -1,0 +1,41 @@
+---
+name: HammerDB MySQL TPC-C benchmark (T2 workload-aware)
+author: Didi Hoffmann <didi@green-coding.berlin)
+description: >
+  TPC-C on MySQL, tuning tier T2 (workload-aware, OLTP). T1 InnoDB sizing + OLTP
+  write-path tuning (more purge threads, full change buffering, adaptive hash
+  index). Config-only; shares the T0 flow. See TUNING.md.
+
+compose-file: !include compose.yml
+
+custom_metrics:
+  sqlop:
+    unit: TPC-C SQL-op
+    sci: true
+
+services:
+  mysql:
+    command:
+      - "--innodb-buffer-pool-size=5G"
+      - "--innodb-buffer-pool-instances=4"
+      - "--innodb-redo-log-capacity=2G"
+      - "--innodb-flush-method=O_DIRECT"
+      - "--innodb-flush-log-at-trx-commit=1"
+      - "--innodb-io-capacity=2000"
+      - "--innodb-io-capacity-max=4000"
+      - "--max-connections=200"
+      - "--table-open-cache=4000"
+      - "--innodb-purge-threads=4"            # T2: keep up with TPC-C purge load
+      - "--innodb-change-buffering=all"        # T2: buffer secondary-index writes
+      - "--innodb-adaptive-hash-index=ON"
+  postgres: # empty key will remove the unused service
+  mariadb: # empty key will remove the unused service
+  oracle: # empty key will remove the unused service
+  mssql: # empty key will remove the unused service
+  db2: # empty key will remove the unused service
+  hammerdb:
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+flow: !include ['mysql.yml', 'flow']

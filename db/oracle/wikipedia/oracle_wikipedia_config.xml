@@ -1,0 +1,50 @@
+<?xml version="1.0"?>
+<!-- BenchBase Wikipedia workload for Oracle Database Free (DBMS-bench).
+     Standard CMU BenchBase config; only connection details, scalefactor,
+     terminals and rate are repo-specific. Driven by the benchbase container
+     against the default-configuration Oracle Database Free container. -->
+<parameters>
+
+    <!-- Connection details -->
+    <type>ORACLE</type>
+    <driver>oracle.jdbc.OracleDriver</driver>
+    <url>jdbc:oracle:thin:@oracle_container:1521/FREEPDB1</url>
+    <username>benchbase</username>
+    <password>benchbase</password>
+    <reconnectOnConnectionFailure>true</reconnectOnConnectionFailure>
+    <isolation>TRANSACTION_READ_COMMITTED</isolation>
+    <batchsize>128</batchsize>
+
+    <!-- Wikipedia scalefactor = wiki pages / 1000 (sf=10 -> ~10k pages of real article text). -->
+    <scalefactor>10</scalefactor>
+
+    <!-- Run the mix at max throughput for 60s on a fixed terminal count so
+         every engine sees the same load. Tune <terminals> to the benchmark host. -->
+    <terminals>8</terminals>
+    <works>
+        <work>
+            <time>60</time>
+            <rate>unlimited</rate>
+            <!-- Default OLTP-Bench mix: ~91% reads (page views), ~9% writes. -->
+            <weights>1,1,7,90,1</weights>
+        </work>
+    </works>
+
+    <transactiontypes>
+        <transactiontype>
+            <name>AddWatchList</name>
+        </transactiontype>
+        <transactiontype>
+            <name>RemoveWatchList</name>
+        </transactiontype>
+        <transactiontype>
+            <name>UpdatePage</name>
+        </transactiontype>
+        <transactiontype>
+            <name>GetPageAnonymous</name>
+        </transactiontype>
+        <transactiontype>
+            <name>GetPageAuthenticated</name>
+        </transactiontype>
+    </transactiontypes>
+</parameters>

@@ -1,0 +1,58 @@
+---
+name: HammerDB Oracle TPC-C benchmark (T1 envelope-sized)
+author: Didi Hoffmann <didi@green-coding.berlin)
+description: >
+  TPC-C on Oracle Database Free, tuning tier T1 (envelope-sized). Oracle has no
+  command-flag config, so a prepended flow step runs ALTER SYSTEM in
+  oracle_container before the workload.
+  CAVEAT: Oracle Database Free is licence-capped at ~2 GB RAM / 2 CPU threads, so
+  it CANNOT use the 8-GB / 4-CPU envelope; T1 sizes the SGA/PGA up to that cap, so
+  the T0->T1 delta is expected to be small. If the instance uses Automatic Memory
+  Management (memory_target>0) the SGA/PGA ALTERs are skipped (need a restart) --
+  check this step's stdout in the run log to confirm what was applied. VERIFY on
+  first run.
+
+compose-file: !include compose.yml
+
+custom_metrics:
+  sqlop:
+    unit: TPC-C SQL-op
+    sci: true
+
+services:
+  # oracle service intentionally NOT listed -> kept as-is from compose.yml
+  # (tuning is applied at runtime by the prepended flow step below).
+  postgres: # empty key will remove the unused service
+  mariadb: # empty key will remove the unused service
+  mysql: # empty key will remove the unused service
+  mssql: # empty key will remove the unused service
+  db2: # empty key will remove the unused service
+  hammerdb: # wait for Oracle to finish starting up before benchmarking
+    depends_on:
+      oracle:
+        condition: service_healthy
+    # Oracle Instant Client ships in the hammerdb image but its dir is not on the
+    # loader path; needed so libclntsh.so finds libnnz21.so / libclntshcore.so.
+    environment:
+      LD_LIBRARY_PATH: /home/instantclient_21_18
+
+# T1 tuning runs as a prepended flow step (Oracle has no command-flag config).
+# Retries until the listener answers, continues past ORA errors, never fails the
+# run. Connects to the CDB root (service FREE) as SYSDBA.
+flow-prepend:
+  - name: Tune Oracle (T1 envelope-sized)
+    container: oracle_container
+    commands:
+      - type: console
+        note: APPLY T1 SGA/PGA SIZING (capped by Oracle Free 2 GB limit)
+        command: |
+          i=0; while [ $i -lt 30 ]; do
+            printf 'WHENEVER SQLERROR CONTINUE\nALTER SYSTEM SET sga_target=1300M SCOPE=BOTH;\nALTER SYSTEM SET pga_aggregate_target=500M SCOPE=BOTH;\nSHOW PARAMETER sga_target\nSHOW PARAMETER pga_aggregate_target\nEXIT\n' \
+              | sqlplus -s -L sys/oracle@//localhost:1521/FREE as sysdba && break
+            i=$((i+1)); sleep 3
+          done; true
+        shell: bash
+        log-stdout: true
+
+# Same benchmark flow as the default (T0) scenario.
+flow: !include ['oracle.yml', 'flow']

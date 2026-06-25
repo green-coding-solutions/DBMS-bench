@@ -1,0 +1,43 @@
+---
+name: BenchBase Oracle Wikipedia benchmark (T2 workload-aware)
+author: Didi Hoffmann <didi@green-coding.berlin)
+description: >
+  Wikipedia (BenchBase) on Oracle Database Free, tuning tier T2 (read-mostly
+  serving). T1 SGA/PGA sizing (prepended). Free's 2 GB / 2-thread cap + no usable
+  native advisor make this a CONFIG-PARITY (thin) T2 = T1. See TUNING.md.
+
+compose-file: !include compose.yml
+
+custom_metrics:
+  wikipedia_requests:
+    unit: Wikipedia request
+    sci: true
+
+services:
+  postgres: # unused — empty key removes the service
+  mariadb: # unused — empty key removes the service
+  mysql: # unused — empty key removes the service
+  mssql: # unused — empty key removes the service
+  db2: # unused — empty key removes the service
+  hammerdb: # unused — empty key removes the service
+  benchbase:
+    depends_on:
+      oracle:
+        condition: service_healthy
+
+flow-prepend:
+  - name: Tune Oracle (T1 envelope-sized)
+    container: oracle_container
+    commands:
+      - type: console
+        note: APPLY T1 SGA/PGA SIZING (capped by Oracle Free 2 GB limit)
+        command: |
+          i=0; while [ $i -lt 30 ]; do
+            printf 'WHENEVER SQLERROR CONTINUE\nALTER SYSTEM SET sga_target=1300M SCOPE=BOTH;\nALTER SYSTEM SET pga_aggregate_target=500M SCOPE=BOTH;\nEXIT\n' \
+              | sqlplus -s -L sys/oracle@//localhost:1521/FREE as sysdba && break
+            i=$((i+1)); sleep 3
+          done; true
+        shell: bash
+        log-stdout: true
+
+flow: !include ['oracle.yml', 'flow']
