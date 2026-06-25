@@ -34,6 +34,7 @@ from __future__ import annotations
 import argparse
 import fnmatch
 import importlib.util
+import json
 import os
 import re
 import subprocess
@@ -181,6 +182,45 @@ def build_name(prefix: str, rel_path: Path, branch: str) -> str:
     return f"{prefix} {benchmark}/{db}"
 
 
+def submission_error_details(
+    exc: Exception,
+    payload: dict[str, object],
+    api_url: str,
+) -> list[str]:
+    """Return safe diagnostics for a failed API submission.
+
+    Do not include authentication headers or the API key. The payload only holds
+    non-secret submission metadata.
+    """
+    details = [f"request: POST {api_url.rstrip('/')}/v1/software/add"]
+
+    cause = exc.__cause__
+    response = getattr(cause, "response", None)
+    if response is not None:
+        details.append(f"status: HTTP {response.status_code}")
+        content_type = response.headers.get("content-type")
+        if content_type:
+            details.append(f"content-type: {content_type}")
+        body = (response.text or "").strip()
+        if body:
+            details.append(f"response: {body[:1000]}")
+    else:
+        details.append("status: unavailable (no HTTP response attached)")
+
+    details.append(
+        "payload: "
+        + json.dumps(payload, sort_keys=True, ensure_ascii=False, default=str)
+    )
+
+    if re.search(r"\bHTTP 404\b", str(exc)):
+        details.append(
+            "hint: HTTP 404 usually means the API endpoint was not found; check "
+            "--api-url and that the submit helper still targets the current GMT API."
+        )
+
+    return details
+
+
 def build_parser(submit_mod: ModuleType) -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         description=__doc__,
@@ -315,6 +355,7 @@ def main() -> None:
     print(f"Branch:   {branch}")
     print(f"Machine:  {args.machine_id}")
     print(f"Schedule: {args.schedule_mode}")
+    print(f"API:      {args.api_url.rstrip('/')}")
     if args.tier is not None:
         print(f"Tier:     T{args.tier}")
     print(f"Scenarios ({len(rel_scenarios)}):")
@@ -350,6 +391,8 @@ def main() -> None:
         except Exception as exc:  # APIError, HTTP errors, etc.
             failures += 1
             print(f"  FAIL  {rel.as_posix()}: {exc}", file=sys.stderr)
+            for detail in submission_error_details(exc, payload, args.api_url):
+                print(f"        {detail}", file=sys.stderr)
 
     submitted = len(rel_scenarios) - failures
     print(f"\nSubmitted {submitted}/{len(rel_scenarios)} scenario(s).")
