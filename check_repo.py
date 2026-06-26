@@ -62,7 +62,12 @@ TCL_KNOBS = {
         "scale_fact": r"scale_fact\s+(\d+)",
         "num_tpch_threads": r"num_tpch_threads\s+(\d+)",
         "total_querysets": r"total_querysets\s+(\d+)",
-        "degree_of_parallel": r"degree_of_parallel\s+(\d+)",
+        # Per-query intra-query parallelism. Each engine names this knob
+        # differently in HammerDB: pg_/oracle's `degree_of_parallel`, and
+        # MSSQL's `mssqls_maxdop` (MAXDOP) — the same fairness setting, so we
+        # match either. maria/mysql/db2 have no such HammerDB knob (no parallel
+        # query control there), so they legitimately never set it.
+        "degree_of_parallel": r"(?:degree_of_parallel|mssqls_maxdop)\s+(\d+)",
     },
 }
 
@@ -295,8 +300,19 @@ def check_benchmark_params(rep: Reporter) -> None:
             per_db = {}
             for db in DATABASES:
                 knobs = extractor(benchmark, db, tier)
-                if knobs is not None:
-                    per_db[db] = knobs
+                if knobs is None:
+                    continue
+                # A sub-tier (t2, t2col, ...) only restates the knobs it
+                # re-tunes; everything else is inherited from the engine's base
+                # tier. Most importantly build-phase knobs (e.g.
+                # num_tpch_threads) live in the base buildschema and a run-only
+                # sub-tier reuses them. Fill those in from base so we compare the
+                # effective config, not just what the sub-tier happens to repeat.
+                if tier != "base":
+                    base = extractor(benchmark, db, "base")
+                    if base is not None:
+                        knobs = {**base, **knobs}
+                per_db[db] = knobs
 
             label = benchmark if tier == "base" else f"{benchmark} [{tier}]"
             print(f"\n  [{label}] engines: {', '.join(per_db) or '(none found)'}")
