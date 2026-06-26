@@ -96,10 +96,17 @@ services:
     container_name: db2_container
     cpus: 4
     mem_limit: 8g
-    # Db2 needs a privileged container. GMT has no `privileged` key, so it is
-    # passed through as a raw docker run arg (allowed because of --allow-unsafe).
+    # Db2 creates its instance's System V IPC objects (shared memory +
+    # semaphores) across UIDs during CREATE DATABASE, which needs CAP_IPC_OWNER.
+    # That is the ONLY thing it actually needed from --privileged: tested, with
+    # just this capability Db2 inits, CREATE DATABASE succeeds and connections
+    # work; without it CREATE DATABASE fails (SQL1031N on connect). No --sysctl
+    # or --ulimit is needed on a modern kernel (defaults already exceed Db2's
+    # IPC minimums). If Db2 ever fails to start on a host with unusually low IPC
+    # limits, add the specific --sysctl (e.g. kernel.sem / kernel.shmmax) here —
+    # that is a resource ceiling, not performance tuning.
     docker-run-args:
-      - "--privileged"
+      - "--cap-add IPC_OWNER"
     environment:
       LICENSE: accept
       DB2INST1_PASSWORD: ibmdb2

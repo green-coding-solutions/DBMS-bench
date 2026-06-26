@@ -96,10 +96,8 @@ services:
     container_name: db2_container
     cpus: 4
     mem_limit: 8g
-    # Db2 needs a privileged container. GMT has no `privileged` key, so it is
-    # passed through as a raw docker run arg (allowed because of --allow-unsafe).
     docker-run-args:
-      - "--privileged"
+      - "--cap-add IPC_OWNER"
     environment:
       LICENSE: accept
       DB2INST1_PASSWORD: ibmdb2

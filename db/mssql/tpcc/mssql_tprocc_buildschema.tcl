@@ -23,8 +23,10 @@ set warehouse [ expr {$vu * 20} ]
 diset tpcc mssqls_count_ware $warehouse
 diset tpcc mssqls_num_vu $vu
 diset tpcc mssqls_dbase tpcc
-# load via INSERTs, not bcp: the hammerdb image has the ODBC driver but no bcp binary
-diset tpcc mssqls_use_bcp false
+# bulk-load via bcp (much faster than INSERTs). bcp ships at
+# /opt/mssql-tools18/bin/bcp but is not on PATH, so the build command
+# in mssql.yml prepends it to PATH before invoking hammerdbcli.
+diset tpcc mssqls_use_bcp true
 
 puts "SCHEMA BUILD STARTED"
 buildschema

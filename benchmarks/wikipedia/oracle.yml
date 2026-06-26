@@ -28,7 +28,7 @@ flow:
     commands:
       - type: console
         note: CREATE BENCHBASE DATABASE
-        command: echo "WHENEVER SQLERROR CONTINUE; CREATE USER benchbase IDENTIFIED BY benchbase DEFAULT TABLESPACE users QUOTA UNLIMITED ON users; GRANT CONNECT, RESOURCE, CREATE VIEW TO benchbase; EXIT;" | sqlplus -s system/oracle@//localhost:1521/FREEPDB1
+        command: printf '%s\n' "WHENEVER SQLERROR EXIT FAILURE" "CREATE USER benchbase IDENTIFIED BY benchbase DEFAULT TABLESPACE users QUOTA UNLIMITED ON users;" "GRANT CONNECT, RESOURCE, CREATE VIEW TO benchbase;" "EXIT;" | sqlplus -s system/oracle@//localhost:1521/FREEPDB1
         shell: sh
         log-stdout: true
   - name: Load Wikipedia schema and data
