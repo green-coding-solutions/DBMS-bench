@@ -67,7 +67,7 @@ flow:
     commands:
       - type: console
         note: RUN HAMMERDB BUILD (BLU column-organized)
-        command: . /database/config/db2inst1/sqllib/db2profile && cd /home/HammerDB-5.0 && ./hammerdbcli auto /tmp/repo/db/db2/tpch/db2_tproch_buildschema.t2col.tcl | tee /dev/stderr | awk '/query [0-9]+ completed in/{q++} END{if(q>0){printf("tpch_queries=%d\n",q)}}'
+        command: . /database/config/db2inst1/sqllib/db2profile && cd /home/HammerDB-5.0 && ./hammerdbcli auto /tmp/repo/db/db2/tpch/db2_tproch_buildschema.t2col.tcl | tee /dev/stderr | awk '/query [0-9]+ completed in/{q++} END{if(q>0){"date +%s"|getline ts; printf("%s000000 tpch_queries=%d\n", ts, q)}}'
         shell: sh
         log-stdout: true
         read-sci-stdout: true
@@ -89,7 +89,7 @@ flow:
     commands:
       - type: console
         note: RUN HAMMERDB QUERIES
-        command: . /database/config/db2inst1/sqllib/db2profile && cd /home/HammerDB-5.0 && ./hammerdbcli auto /tmp/repo/db/db2/tpch/db2_tproch_run.tcl | tee /dev/stderr | awk '/query [0-9]+ completed in/{q++} END{if(q>0){printf("tpch_queries=%d\n",q)}}'
+        command: . /database/config/db2inst1/sqllib/db2profile && cd /home/HammerDB-5.0 && ./hammerdbcli auto /tmp/repo/db/db2/tpch/db2_tproch_run.tcl | tee /dev/stderr | awk '/query [0-9]+ completed in/{q++} END{if(q>0){"date +%s"|getline ts; printf("%s000000 tpch_queries=%d\n", ts, q)}}'
         shell: sh
         log-stdout: true
         read-sci-stdout: true
@@ -98,7 +98,7 @@ flow:
     commands:
       - type: console
         note: RUN HAMMERDB DROP
-        command: . /database/config/db2inst1/sqllib/db2profile && cd /home/HammerDB-5.0 && ./hammerdbcli auto /tmp/repo/db/db2/tpch/db2_tproch_deleteschema.tcl | tee /dev/stderr | awk '/query [0-9]+ completed in/{q++} END{if(q>0){printf("tpch_queries=%d\n",q)}}'
+        command: . /database/config/db2inst1/sqllib/db2profile && cd /home/HammerDB-5.0 && ./hammerdbcli auto /tmp/repo/db/db2/tpch/db2_tproch_deleteschema.tcl | tee /dev/stderr | awk '/query [0-9]+ completed in/{q++} END{if(q>0){"date +%s"|getline ts; printf("%s000000 tpch_queries=%d\n", ts, q)}}'
         shell: sh
         log-stdout: true
         read-sci-stdout: true

@@ -49,7 +49,7 @@ flow:
     commands:
       - type: console
         note: RUN HAMMERDB BUILD
-        command: ./hammerdbcli auto /tmp/repo/db/mysql/tpch/mysql_tproch_buildschema.tcl | tee /dev/stderr | awk '/query [0-9]+ completed in/{q++} END{if(q>0){printf("tpch_queries=%d\n",q)}}'
+        command: ./hammerdbcli auto /tmp/repo/db/mysql/tpch/mysql_tproch_buildschema.tcl | tee /dev/stderr | awk '/query [0-9]+ completed in/{q++} END{if(q>0){"date +%s"|getline ts; printf("%s000000 tpch_queries=%d\n", ts, q)}}'
         shell: sh
         log-stdout: true
         read-sci-stdout: true
@@ -75,7 +75,7 @@ flow:
     commands:
       - type: console
         note: RUN HAMMERDB QUERIES
-        command: ./hammerdbcli auto /tmp/repo/db/mysql/tpch/mysql_tproch_run.tcl | tee /dev/stderr | awk '/query [0-9]+ completed in/{q++} END{if(q>0){printf("tpch_queries=%d\n",q)}}'
+        command: ./hammerdbcli auto /tmp/repo/db/mysql/tpch/mysql_tproch_run.tcl | tee /dev/stderr | awk '/query [0-9]+ completed in/{q++} END{if(q>0){"date +%s"|getline ts; printf("%s000000 tpch_queries=%d\n", ts, q)}}'
         shell: sh
         log-stdout: true
         read-sci-stdout: true
@@ -84,7 +84,7 @@ flow:
     commands:
       - type: console
         note: RUN HAMMERDB DROP
-        command: ./hammerdbcli auto /tmp/repo/db/mysql/tpch/mysql_tproch_deleteschema.tcl | tee /dev/stderr | awk '/query [0-9]+ completed in/{q++} END{if(q>0){printf("tpch_queries=%d\n",q)}}'
+        command: ./hammerdbcli auto /tmp/repo/db/mysql/tpch/mysql_tproch_deleteschema.tcl | tee /dev/stderr | awk '/query [0-9]+ completed in/{q++} END{if(q>0){"date +%s"|getline ts; printf("%s000000 tpch_queries=%d\n", ts, q)}}'
         shell: sh
         log-stdout: true
         read-sci-stdout: true

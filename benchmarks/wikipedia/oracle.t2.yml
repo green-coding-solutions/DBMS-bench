@@ -33,7 +33,7 @@ flow-prepend:
         note: APPLY T1 SGA/PGA SIZING (capped by Oracle Free 2 GB limit)
         command: |
           i=0; while [ $i -lt 30 ]; do
-            printf 'WHENEVER SQLERROR CONTINUE\nALTER SYSTEM SET sga_target=1300M SCOPE=BOTH;\nALTER SYSTEM SET pga_aggregate_target=500M SCOPE=BOTH;\nEXIT\n' \
+            printf 'WHENEVER SQLERROR CONTINUE\nALTER SYSTEM SET sga_target=1300M SCOPE=BOTH;\nALTER SYSTEM SET pga_aggregate_target=500M SCOPE=BOTH;\nSHOW PARAMETER sga_target\nSHOW PARAMETER pga_aggregate_target\nEXIT\n' \
               | sqlplus -s -L sys/oracle@//localhost:1521/FREE as sysdba && break
             i=$((i+1)); sleep 3
           done; true

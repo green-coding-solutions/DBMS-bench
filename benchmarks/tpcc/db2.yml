@@ -36,7 +36,7 @@ flow:
     commands:
       - type: console
         note: RUN HAMMERDB BUILD
-        command: . /database/config/db2inst1/sqllib/db2profile && cd /home/HammerDB-5.0 && ./hammerdbcli auto /tmp/repo/db/db2/tpcc/db2_tprocc_buildschema.tcl | tee /dev/stderr | awk '/System achieved [0-9]+ NOPM/ { match($0, /System achieved [0-9]+ NOPM/); printf("sqlop=%s\n", substr($0, RSTART+16, RLENGTH-21)) }'
+        command: . /database/config/db2inst1/sqllib/db2profile && cd /home/HammerDB-5.0 && ./hammerdbcli auto /tmp/repo/db/db2/tpcc/db2_tprocc_buildschema.tcl | tee /dev/stderr | awk '/System achieved [0-9]+ NOPM/ { match($0, /System achieved [0-9]+ NOPM/); "date +%s"|getline ts; printf("%s000000 sqlop=%s\n", ts, substr($0, RSTART+16, RLENGTH-21)) }'
         shell: sh
         log-stdout: true
         read-sci-stdout: true
@@ -45,7 +45,7 @@ flow:
     commands:
       - type: console
         note: RUN HAMMERDB SELECTS
-        command: . /database/config/db2inst1/sqllib/db2profile && cd /home/HammerDB-5.0 && ./hammerdbcli auto /tmp/repo/db/db2/tpcc/db2_tprocc_run.tcl | tee /dev/stderr | awk '/System achieved [0-9]+ NOPM/ { match($0, /System achieved [0-9]+ NOPM/); printf("sqlop=%s\n", substr($0, RSTART+16, RLENGTH-21)) }'
+        command: . /database/config/db2inst1/sqllib/db2profile && cd /home/HammerDB-5.0 && ./hammerdbcli auto /tmp/repo/db/db2/tpcc/db2_tprocc_run.tcl | tee /dev/stderr | awk '/System achieved [0-9]+ NOPM/ { match($0, /System achieved [0-9]+ NOPM/); "date +%s"|getline ts; printf("%s000000 sqlop=%s\n", ts, substr($0, RSTART+16, RLENGTH-21)) }'
         shell: sh
         log-stdout: true
         read-sci-stdout: true
@@ -54,7 +54,7 @@ flow:
     commands:
       - type: console
         note: RUN HAMMERDB DROP
-        command: . /database/config/db2inst1/sqllib/db2profile && cd /home/HammerDB-5.0 && ./hammerdbcli auto /tmp/repo/db/db2/tpcc/db2_tprocc_deleteschema.tcl | tee /dev/stderr | awk '/System achieved [0-9]+ NOPM/ { match($0, /System achieved [0-9]+ NOPM/); printf("sqlop=%s\n", substr($0, RSTART+16, RLENGTH-21)) }'
+        command: . /database/config/db2inst1/sqllib/db2profile && cd /home/HammerDB-5.0 && ./hammerdbcli auto /tmp/repo/db/db2/tpcc/db2_tprocc_deleteschema.tcl | tee /dev/stderr | awk '/System achieved [0-9]+ NOPM/ { match($0, /System achieved [0-9]+ NOPM/); "date +%s"|getline ts; printf("%s000000 sqlop=%s\n", ts, substr($0, RSTART+16, RLENGTH-21)) }'
         shell: sh
         log-stdout: true
         read-sci-stdout: true

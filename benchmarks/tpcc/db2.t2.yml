@@ -39,7 +39,15 @@ flow-prepend:
             db2 connect to tpcc
             db2 update db cfg for tpcc using SELF_TUNING_MEM ON IMMEDIATE
             db2 update db cfg for tpcc using DATABASE_MEMORY AUTOMATIC IMMEDIATE
+            db2 alter bufferpool IBMDEFAULTBP IMMEDIATE SIZE AUTOMATIC
+            db2 update db cfg for tpcc using SORTHEAP AUTOMATIC SHEAPTHRES_SHR AUTOMATIC IMMEDIATE
+            db2 get db cfg for tpcc | grep -iE "Self.Tuning|Database memory|Sort heap|Buffer"
             db2 connect reset
+            # --- OPTIONAL (NEEDS VERIFY): cap instance memory to the 8 GB cgroup so
+            # --- STMM does not size against mis-detected host RAM. Needs a restart;
+            # --- the Catalog step that follows already retries the connection.
+            # db2 update dbm cfg using INSTANCE_MEMORY 1572864   # 6 GB in 4 KB pages
+            # db2stop force; db2start
           ' || true
         shell: bash
         log-stdout: true

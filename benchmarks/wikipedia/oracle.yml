@@ -44,7 +44,7 @@ flow:
     commands:
       - type: console
         note: BENCHBASE EXECUTE
-        command: cd /benchbase/benchbase-oracle && java -jar benchbase.jar -b wikipedia -c /tmp/repo/db/oracle/wikipedia/oracle_wikipedia_config.xml --create=false --load=false --execute=true | tee /dev/stderr | awk 'match($0,/measuredRequests=[0-9]+/) {v=substr($0,RSTART+17,RLENGTH-17)} END {if (v!="") {printf("wikipedia_requests=%s\n",v)}}'
+        command: cd /benchbase/benchbase-oracle && java -jar benchbase.jar -b wikipedia -c /tmp/repo/db/oracle/wikipedia/oracle_wikipedia_config.xml --create=false --load=false --execute=true | tee /dev/stderr | awk 'match($0,/measuredRequests=[0-9]+/) {v=substr($0,RSTART+17,RLENGTH-17)} END {if (v!="") {"date +%s"|getline ts; printf("%s000000 wikipedia_requests=%s\n", ts, v)}}'
         shell: sh
         log-stdout: true
         read-sci-stdout: true
