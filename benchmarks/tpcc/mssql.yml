@@ -27,7 +27,7 @@ flow:
     commands:
       - type: console
         note: RUN HAMMERDB BUILD
-        command: PATH=/opt/mssql-tools18/bin:$PATH ./hammerdbcli auto /tmp/repo/db/mssql/tpcc/mssql_tprocc_buildschema.tcl | tee /dev/stderr | awk '/System achieved [0-9]+ NOPM/ { match($0, /System achieved [0-9]+ NOPM/); printf("sqlop=%s\n", substr($0, RSTART+16, RLENGTH-21)) }'
+        command: TMP=/tmp PATH=/opt/mssql-tools18/bin:$PATH ./hammerdbcli auto /tmp/repo/db/mssql/tpcc/mssql_tprocc_buildschema.tcl | tee /dev/stderr | awk '/System achieved [0-9]+ NOPM/ { match($0, /System achieved [0-9]+ NOPM/); printf("sqlop=%s\n", substr($0, RSTART+16, RLENGTH-21)) }'
         shell: sh
         log-stdout: true
         read-sci-stdout: true

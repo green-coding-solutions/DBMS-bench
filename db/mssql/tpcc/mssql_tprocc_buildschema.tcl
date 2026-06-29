@@ -25,7 +25,10 @@ diset tpcc mssqls_num_vu $vu
 diset tpcc mssqls_dbase tpcc
 # bulk-load via bcp (much faster than INSERTs). bcp ships at
 # /opt/mssql-tools18/bin/bcp but is not on PATH, so the build command
-# in mssql.yml prepends it to PATH before invoking hammerdbcli.
+# in mssql.yml prepends it to PATH before invoking hammerdbcli. bcp also
+# stages intermediate .dat files in $TMP, which is unset in the hammerdb
+# image, so mssql.yml exports TMP=/tmp on the same command line (without
+# it every worker VU dies with: can't read "::env(TMP)": no such variable).
 diset tpcc mssqls_use_bcp true
 
 puts "SCHEMA BUILD STARTED"
