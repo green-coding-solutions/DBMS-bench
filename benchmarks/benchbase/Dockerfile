@@ -42,6 +42,22 @@ RUN set -eux; \
     grep -q 'revComment.substring(0, Math.min(revComment.length(), 255 - 1))); // rc_comment' "$f"; \
     ! grep -q 'param++, revComment); // rc_comment' "$f"
 
+# Patch the upstream Oracle Wikipedia DDL: five varchar2 columns (ipb_timestamp,
+# page_touched, rev_timestamp, user_touched, user_token) carry a MySQL-style
+# binary default of N literal NUL bytes written as '\0\0...'. Oracle does not
+# process backslash escapes in string literals, so it reads each '\0' as the two
+# characters backslash+zero -- e.g. varchar2(14) DEFAULT '\0\0\0\0\0\0\0\0\0\0\0\0\0\0'
+# is a 28-char default into a 14-char column, which fails CREATE TABLE with
+# ORA-01401 (inserted value too large for column). The sibling timestamp columns
+# in the same file use DEFAULT '', so we normalise every varchar2 NUL-byte
+# default to ''. The grep guard fails the build loudly if upstream changes shape
+# and the patch silently no-ops.
+# Upstream: https://github.com/cmu-db/benchbase  (benchmarks/wikipedia/ddl-oracle.sql)
+RUN set -eux; \
+    f=src/main/resources/benchmarks/wikipedia/ddl-oracle.sql; \
+    sed -i "s/\(varchar2([0-9]*)\) DEFAULT '[\\0]*'/\1 DEFAULT ''/g" "$f"; \
+    ! grep -qF "\0" "$f"
+
 # Build each profile and unpack its tarball into /dist/benchbase-<profile>/.
 # The Maven dependency cache (~/.m2) persists across profiles within this layer,
 # so only the first profile pays the full download cost. Tests are skipped.
