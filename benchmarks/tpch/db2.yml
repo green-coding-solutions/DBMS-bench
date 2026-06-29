@@ -28,6 +28,25 @@ services:
         condition: service_healthy
 
 flow:
+  # Db2 is excluded from the paper (no BenchBase profile; Community-edition capped) and
+  # kept only for benchmarking, so enlarging its undersized default transaction log here
+  # is fine. Without this the bulk load fails with SQL0964C (log full).
+  - name: Size Db2 transaction log
+    container: db2_container
+    commands:
+      - type: console
+        note: ENLARGE TRANSACTION LOG before the bulk load (avoids SQL0964C "log full")
+        command: |
+          su -l db2inst1 -c '
+            i=0; while [ $i -lt 40 ]; do db2 connect to tpch >/dev/null 2>&1 && break; i=$((i+1)); sleep 3; done
+            db2 connect reset
+            db2 update db cfg for tpch using LOGFILSIZ 8192 LOGPRIMARY 16 LOGSECOND 48
+            db2 force application all
+            db2 deactivate db tpch
+            db2 get db cfg for tpch | grep -iE "Log file size|primary log|secondary log"
+          ' || true
+        shell: bash
+        log-stdout: true
   - name: Catalog Db2
     container: hammerdb_container
     commands:
