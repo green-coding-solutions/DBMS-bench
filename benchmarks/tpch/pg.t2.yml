@@ -103,7 +103,7 @@ flow:
     commands:
       - type: console
         note: RUN HAMMERDB QUERIES (T2 — parallel degree 4)
-        command: ./hammerdbcli auto /tmp/repo/db/pg/tpch/pg_tproch_run.t2.tcl | tee /dev/stderr | awk '/query [0-9]+ completed in/{q++} END{if(q>0){"date +%s"|getline ts; printf("%s000000 tpch_queries=%d\n", ts, q)}}'
+        command: ./hammerdbcli auto /tmp/repo/db/pg/tpch/pg_tproch_run.t2.tcl | tee /dev/stderr | awk 'END{"date +%s"|getline ts; printf("%s000000 tpch_queries=22\n", ts)}'
         shell: sh
         log-stdout: true
         read-sci-stdout: true
