@@ -14,9 +14,17 @@ custom_metrics:
     sci: true
 
 services:
+  # T1 tuning: merged onto compose.yml's mssql environment (ACCEPT_EULA etc. kept).
+  #
+  # SQL Server manages its own buffer cache, so "max server memory" is the only
+  # envelope lever here; MAXDOP / cost-threshold are workload-specific -> T2.
+  # See the derivation table in TUNING.md ("How each T1 number is derived").
+  # Deliberate deviation from the vendor rule (leave 25-35% of RAM to the OS and
+  # SQLOS): we leave 37.5%, because under a hard cgroup limit an over-commit is a
+  # silent OOM-kill, not a swap slowdown.
   mssql:
     environment:
-      MSSQL_MEMORY_LIMIT_MB: "5120"   # -> max server memory; ~62% of 8 GB
+      MSSQL_MEMORY_LIMIT_MB: "5120"   # max server memory; 62.5% of the 8-GB cgroup
   postgres: # unused — empty key removes the service
   mariadb: # unused — empty key removes the service
   mysql: # unused — empty key removes the service

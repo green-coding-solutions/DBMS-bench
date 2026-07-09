@@ -35,6 +35,14 @@ services:
 # T1 tuning runs as a prepended flow step (in the Db2 server container, as
 # db2inst1). Retries until the DB answers, echoes the applied config to stdout
 # for verification, never fails the run.
+#
+# WHY THERE ARE NO NUMBERS HERE: Db2's self-tuning memory manager (STMM) sizes
+# the buffer pool and sort heaps at runtime, so the vendor rule *is* "leave them
+# AUTOMATIC" -- there is no envelope literal to derive. Db2 Community is capped
+# at 16 GB / 4 cores, so the 8-GB / 4-CPU envelope fits (unlike Oracle Free).
+# The one lever that would pin STMM to the cgroup (INSTANCE_MEMORY) needs an
+# instance restart and is left opt-in below.
+# See TUNING.md: "How each T1 number is derived".
 flow-prepend:
   - name: Tune Db2 (T1 envelope-sized)
     container: db2_container

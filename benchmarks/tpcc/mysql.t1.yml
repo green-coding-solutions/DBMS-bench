@@ -17,13 +17,18 @@ custom_metrics:
 services:
   # T1 tuning: flags appended to mysqld by the official image entrypoint (it
   # prepends `mysqld` when the command starts with `-`). Merged over compose.yml.
+  #
+  # Every literal below is recomputable from the 4-CPU / 8-GB envelope alone --
+  # see the derivation table in TUNING.md ("How each T1 number is derived").
+  # InnoDB with O_DIRECT owns the only page cache, so the buffer pool takes ~62%
+  # of the cgroup directly (vendor band: 50-75% of RAM).
   mysql:
     command:
-      - "--innodb-buffer-pool-size=5G"           # ~62% of 8 GB
-      - "--innodb-buffer-pool-instances=4"
+      - "--innodb-buffer-pool-size=5G"           # 62.5% of the 8-GB cgroup
+      - "--innodb-buffer-pool-instances=4"       # 5G / 4 = 1.25 GB each (>= 1 GB rule)
       - "--innodb-redo-log-capacity=2G"          # MySQL 8.0.30+/9.x redo sizing
       - "--innodb-flush-method=O_DIRECT"         # avoid double-buffering w/ page cache
-      - "--innodb-flush-log-at-trx-commit=1"     # full durability (explicit)
+      - "--innodb-flush-log-at-trx-commit=1"     # full durability (engine default, explicit)
       - "--innodb-io-capacity=2000"              # SSD-class
       - "--innodb-io-capacity-max=4000"          # SSD-class
       - "--max-connections=200"

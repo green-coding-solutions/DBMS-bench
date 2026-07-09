@@ -16,12 +16,17 @@ custom_metrics:
 services:
   # T1 tuning: flags appended to mariadbd by the image entrypoint. Merged over
   # compose.yml. (buffer_pool_instances is omitted: a no-op on modern MariaDB.)
+  #
+  # Every literal below is recomputable from the 4-CPU / 8-GB envelope alone --
+  # see the derivation table in TUNING.md ("How each T1 number is derived").
+  # Same InnoDB rule as mysql.t1.yml: O_DIRECT makes the buffer pool the only
+  # cache, so it takes ~62% of the cgroup directly (vendor band: 50-75% of RAM).
   mariadb:
     command:
-      - "--innodb-buffer-pool-size=5G"           # ~62% of 8 GB
+      - "--innodb-buffer-pool-size=5G"           # 62.5% of the 8-GB cgroup
       - "--innodb-log-file-size=2G"              # redo log sizing
-      - "--innodb-flush-method=O_DIRECT"
-      - "--innodb-flush-log-at-trx-commit=1"     # full durability (explicit)
+      - "--innodb-flush-method=O_DIRECT"         # avoid double-buffering w/ page cache
+      - "--innodb-flush-log-at-trx-commit=1"     # full durability (engine default, explicit)
       - "--innodb-io-capacity=2000"              # SSD-class
       - "--innodb-io-capacity-max=4000"          # SSD-class
       - "--max-connections=200"

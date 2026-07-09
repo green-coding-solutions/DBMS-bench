@@ -15,7 +15,9 @@ custom_metrics:
     sci: true
 
 services:
-  # oracle service intentionally NOT listed -> kept as-is from compose.yml.
+  # oracle service intentionally NOT listed -> kept as-is from compose.yml
+  # (Oracle exposes no command-flag config; T1 is applied at runtime by the
+  # prepended flow step below).
   postgres: # empty key will remove the unused service
   mariadb: # empty key will remove the unused service
   mysql: # empty key will remove the unused service
@@ -28,6 +30,18 @@ services:
     environment:
       LD_LIBRARY_PATH: /home/instantclient_21_18
 
+# T1 tuning runs as a prepended flow step (Oracle has no command-flag config).
+# Retries until the listener answers, continues past ORA errors, never fails the
+# run. Connects to the CDB root (service FREE) as SYSDBA.
+#
+# WHY THESE NUMBERS LOOK NOTHING LIKE THE OTHER ENGINES': Oracle Database Free is
+# licence-capped at ~2 GB of database RAM (SGA+PGA) and 2 CPU threads, so T1 is
+# sized against THAT cap, not the 8-GB cgroup every other engine gets:
+#     1300M (SGA) + 500M (PGA) = 1800M of the 2048M cap, ~250M headroom.
+# The procedure is identical (vendor rule applied to the effective memory limit);
+# only the effective limit differs. Oracle Free therefore cannot fill the shared
+# envelope, and its absolute J/op is not comparable on equal-hardware terms.
+# See TUNING.md: "How each T1 number is derived" + "Threats to validity".
 flow-prepend:
   - name: Tune Oracle (T1 envelope-sized)
     container: oracle_container

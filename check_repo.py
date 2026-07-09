@@ -9,7 +9,7 @@ parameters, otherwise the energy/throughput numbers are not comparable.
 Because GMT refuses to `!include` a compose file from a parent directory, each
 benchmark folder (``benchmarks/tpcc/``, ``benchmarks/tpch/``, ...) carries its
 own copy of ``compose.yml`` next to the usage scenarios. Copies drift, so this
-script enforces three invariants:
+script enforces four invariants:
 
   1. Every ``compose.yml`` in the repo is byte-for-byte identical (the per-folder
      copies must match the root source of truth).
@@ -19,6 +19,10 @@ script enforces three invariants:
   3. For each benchmark, the per-engine driver scripts use the same fairness
      knobs (virtual users, scale factor, terminals, duration, ...) across all
      databases.
+  4. For each engine, the T1 tuning payload is byte-for-byte identical across all
+     benchmarks — comments included. T1 is hardware-sized and workload-agnostic
+     (TUNING.md), so a per-benchmark difference is drift, and a *missing comment*
+     is the provenance a reviewer needs to reproduce the number going missing.
 
 Exit code is 0 when everything is consistent, 1 otherwise. Run it from anywhere;
 paths are resolved relative to this file.
@@ -353,6 +357,142 @@ def check_benchmark_params(rep: Reporter) -> None:
                     )
 
 
+# --------------------------------------------------------------------------- #
+# Check 4: the T1 tuning payload is identical across benchmarks, per engine
+# --------------------------------------------------------------------------- #
+# The compose service that each engine's scenarios tune.
+T1_SERVICE_OF = {
+    "pg": "postgres",
+    "maria": "mariadb",
+    "mysql": "mysql",
+    "oracle": "oracle",
+    "mssql": "mssql",
+    "db2": "db2",
+}
+
+# Db2 is the one engine whose *service* block legitimately varies per benchmark
+# (it carries DBNAME=tpcc vs tpch), and whose flow-prepend names that database.
+# So compare only its flow-prepend, with the database name normalised away.
+T1_FLOW_ONLY = {"db2"}
+T1_DBNAME_RE = re.compile(r"\b(?:tpcc|tpch)\b")
+
+
+def _indent(line: str) -> int:
+    return len(line) - len(line.lstrip(" "))
+
+
+def extract_t1_payload(benchmark: str, db: str) -> str | None:
+    """Return the T1 *tuning payload* of benchmarks/<benchmark>/<db>.t1.yml as raw
+    text: the engine's service block (with the comments that justify each knob),
+    plus the `flow-prepend:` tuning step for engines that have no command-flag
+    config (Oracle, Db2). None when the scenario does not exist.
+
+    Everything else in the file — description, custom_metrics, which services are
+    removed, the load driver, the `flow:` include — is benchmark-specific and is
+    deliberately not compared. Raw text rather than parsed YAML, because the
+    per-knob provenance comments are exactly what must not drift.
+    """
+    path = REPO / "benchmarks" / benchmark / f"{db}.t1.yml"
+    if not path.is_file():
+        return None
+
+    lines = path.read_text().splitlines()
+    chunks: list[str] = []
+
+    if db not in T1_FLOW_ONLY:
+        svc = T1_SERVICE_OF[db]
+        si = next((i for i, l in enumerate(lines) if l.rstrip() == "services:"), None)
+        if si is None:
+            return None
+        j = si + 1
+        block: list[str] = []
+        # the engine preamble: contiguous indent-2 comments right under `services:`
+        while j < len(lines) and lines[j].startswith("  #"):
+            block.append(lines[j])
+            j += 1
+        # the engine's own service key and its indented body (absent for Oracle,
+        # which is kept as-is from compose.yml and tuned via flow-prepend)
+        if j < len(lines) and lines[j].rstrip() == f"  {svc}:":
+            block.append(lines[j])
+            j += 1
+            while j < len(lines) and (not lines[j].strip() or _indent(lines[j]) >= 4):
+                block.append(lines[j])
+                j += 1
+        while block and not block[-1].strip():
+            block.pop()
+        chunks.append("\n".join(block))
+
+    fi = next((i for i, l in enumerate(lines) if l.rstrip() == "flow-prepend:"), None)
+    if fi is not None:
+        start = fi
+        while start - 1 >= 0 and lines[start - 1].startswith("#"):
+            start -= 1
+        end = fi + 1
+        while end < len(lines) and (
+            not lines[end].strip() or lines[end].startswith((" ", "\t"))
+        ):
+            end += 1
+        block = lines[start:end]
+        while block and not block[-1].strip():
+            block.pop()
+        chunks.append("\n".join(block))
+
+    payload = "\n".join(c for c in chunks if c.strip())
+    if db in T1_FLOW_ONLY:
+        payload = T1_DBNAME_RE.sub("@DB@", payload)
+    return payload or None
+
+
+def check_t1_identical(rep: Reporter) -> None:
+    rep.section("4. T1 tuning payload is identical across benchmarks (per engine)")
+
+    for db in DATABASES:
+        payloads = {
+            b: p
+            for b in BENCHMARKS
+            if (p := extract_t1_payload(b, db)) is not None
+        }
+        if not payloads:
+            rep.warn(f"{db}: no T1 scenarios found")
+            continue
+        if len(payloads) == 1:
+            rep.ok(f"{db}.t1: only {next(iter(payloads))} ships this engine")
+            continue
+
+        groups: dict[str, list[str]] = {}
+        for bench, payload in payloads.items():
+            groups.setdefault(payload, []).append(bench)
+
+        if len(groups) == 1:
+            note = " (flow-prepend only; DBNAME normalised)" if db in T1_FLOW_ONLY else ""
+            rep.ok(f"{db}.t1 = same tuning in {', '.join(sorted(payloads))}{note}")
+            continue
+
+        rep.fail(
+            f"{db}.t1 tuning payload differs across benchmarks: "
+            + " | ".join("{" + ", ".join(sorted(bs)) + "}" for bs in groups.values())
+        )
+        # Point at the first divergent line so the drift is actionable.
+        ref_bench = sorted(payloads)[0]
+        ref = payloads[ref_bench].splitlines()
+        for bench in sorted(payloads):
+            if bench == ref_bench:
+                continue
+            other = payloads[bench].splitlines()
+            for n, (a, b) in enumerate(zip(ref, other), start=1):
+                if a != b:
+                    print(f"      {ref_bench} vs {bench}, first diff at payload line {n}:")
+                    print(f"        - {a.strip()}")
+                    print(f"        + {b.strip()}")
+                    break
+            else:
+                if len(ref) != len(other):
+                    print(
+                        f"      {bench}: {len(other)} payload lines vs "
+                        f"{len(ref)} in {ref_bench}"
+                    )
+
+
 def main() -> int:
     print(f"DBMS-bench consistency check — repo: {REPO}")
     rep = Reporter()
@@ -360,6 +500,7 @@ def main() -> int:
     check_compose_identical(rep)
     check_compose_resources(rep)
     check_benchmark_params(rep)
+    check_t1_identical(rep)
 
     print()
     if rep.failures:

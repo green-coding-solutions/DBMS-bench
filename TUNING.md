@@ -12,7 +12,7 @@ reproducible because it is mechanical or algorithmic, not artisanal.
 | Tier | Name | What changes | Status |
 |------|------|--------------|--------|
 | **T0** | Default / out-of-the-box | Stock container, nothing tuned but what's needed to run | shipped (`benchmarks/<bench>/<db>.yml`) |
-| **T1** | Envelope-sized | Each vendor's own rules-of-thumb, sized to the fixed 4-CPU / 8-GB container | shipped (`benchmarks/<bench>/<db>.t1.yml`) |
+| **T1** | Envelope-sized | Each vendor's own rules-of-thumb, evaluated at the engine's effective limit `M` (see "How each T1 number is derived") | shipped (`benchmarks/<bench>/<db>.t1.yml`) |
 | **T2** | Workload-aware | Indexes / partitioning / parallelism + curated config (+ native advisors where usable) | **shipped** — all 5 benchmarks (29 `.t2`/`.t2col` files) |
 | **T2+** | Columnar sub-tier | Best-per-engine columnar (SQL Server columnstore, Db2 BLU) on the analytical benchmarks | shipped (TPC-H `mssql.t2col`, `db2.t2col`) |
 | **T3** | Auto-tuned | One black-box optimiser (e.g. Optuna TPE) over the common knob space, fixed trial budget, objective = energy | planned |
@@ -44,15 +44,28 @@ Measure both meters and report both:
 
 Every engine container gets `cpus: 4` and `mem_limit: 8g` (see `compose.yml`).
 T1 sizes each engine to use *that* envelope well — memory is sized **relative to
-the 8-GB cgroup, not host RAM**, because a buffer pool above the cgroup limit
-triggers OOM-kill / swap and wrecks the energy numbers. Buffers are kept around
-~60% of the limit to leave headroom for per-connection and server overhead.
+the container's cgroup limit, not host RAM**, because a buffer above the cgroup
+limit triggers OOM-kill / swap and wrecks the energy numbers.
+
+One engine cannot actually reach that envelope, and this matters more than any
+individual knob value: **Oracle Database Free is licence-capped at ~2 GB of
+database RAM (SGA+PGA) and 2 CPU threads.** Every other engine fits — Db2
+Community (16 GB / 4 cores), SQL Server Developer (full), and PostgreSQL / MySQL
+/ MariaDB (unrestricted). So define the **effective memory limit**
+
+> `M = min(8 GB cgroup, edition cap)` → 8 GB for every engine except Oracle Free, where `M = 2 GB`.
+
+Every T1 memory number is a vendor rule-of-thumb evaluated at `M`. **The quantity
+held constant across engines is the procedure — rule applied to `M` — not the
+resulting byte counts.** Two engines landing on different numbers is the expected
+output of the procedure, not evidence that it was applied unevenly.
 
 ## T1 settings and provenance
 
 T1 is **hardware-sized and workload-agnostic** — the same engine config is used
 for TPC-C and TPC-H (the `.t1.yml` files for a given engine are identical except
-for the metric and the included flow). Workload specialisation is deferred to T2.
+for the metric and the included flow; `check_repo.py` check 4 enforces this,
+comments included). Workload specialisation is deferred to T2.
 **Durability is left at each engine's default** (e.g. PostgreSQL
 `synchronous_commit=on`, InnoDB `flush_log_at_trx_commit=1`) so the T0→T1 delta
 is pure resource sizing, not a safety trade.
@@ -69,6 +82,68 @@ Rules-of-thumb follow each vendor's published guidance (PostgreSQL 25%/75%
 shared_buffers/effective_cache_size, the PGTune "OLTP" profile shape; InnoDB
 buffer pool 50–75% of RAM with O_DIRECT; SQL Server "max server memory" leaving
 ~25–35% for the OS/SQLOS).
+
+### Why the T1 files look so different from each other
+
+Opening `<bench>/mysql.t1.yml` next to `<bench>/oracle.t1.yml` shows a nine-line
+list of `--innodb-*` flags beside a retrying `sqlplus` script. That is the most
+divergent pair in the repo, and **three independent things vary between them** —
+only the third is about tuning at all:
+
+1. **Knob namespace.** There is no cross-engine "buffer pool size" knob, because
+   the caches are not the same object. InnoDB with `O_DIRECT` bypasses the OS
+   page cache, so its buffer pool *is* the only cache and takes ~62% of `M`
+   directly. PostgreSQL reads *through* the page cache, so its vendor rule is a
+   25% `shared_buffers` plus a 75% `effective_cache_size` — the latter is a
+   **planner hint describing memory Postgres does not allocate.** Db2 exposes no
+   number at all; STMM sizes it at runtime. Forcing these to the same literal
+   would be the actual methodological error: `shared_buffers=5GB` would
+   double-buffer against the page cache and perform *worse*.
+2. **Injection mechanism.** PostgreSQL / MySQL / MariaDB accept `-c key=val` on
+   the entrypoint; SQL Server takes an env var; Oracle and Db2 expose no
+   command-flag config at all and need a `flow-prepend:` step running
+   `ALTER SYSTEM` / `db2 update db cfg`. Pure plumbing, zero methodology — see
+   "How T1 is injected per engine" below.
+3. **Effective limit `M`.** Oracle Free is sized against its 2-GB licence cap,
+   every other engine against the 8-GB cgroup. This is the one difference that
+   genuinely threatens comparability, and it is a property of the *edition*, not
+   of how hard we tuned. See "Threats to validity".
+
+### How each T1 number is derived
+
+Every literal in every `*.t1.yml` is recomputable from `(M, cores) = (8 GB, 4)` —
+or `(2 GB, 2)` for Oracle Free — plus the vendor's published rule. Nothing below
+was hand-picked or search-tuned; there is no per-engine trial-and-error in T1
+(that is what T3 is for).
+
+| Engine | `M` | Vendor rule | Arithmetic | Literal in `*.t1.yml` |
+|--------|-----|-------------|-----------|----------------------|
+| PostgreSQL | 8 GB | `shared_buffers` = 25% of RAM; `effective_cache_size` = 75% (planner hint, not an allocation) | 0.25 × 8 GB; 0.75 × 8 GB | `shared_buffers=2GB`, `effective_cache_size=6GB` |
+| MySQL | 8 GB | InnoDB buffer pool 50–75% of RAM under `O_DIRECT` (sole cache) | 0.625 × 8 GB (mid-band) | `innodb_buffer_pool_size=5G` |
+| MySQL | 8 GB | ≥ 1 GB per buffer-pool instance | 5 G ÷ 4 = 1.25 GB each | `innodb_buffer_pool_instances=4` |
+| MariaDB | 8 GB | same InnoDB rule (instances are a no-op on modern MariaDB) | 0.625 × 8 GB | `innodb_buffer_pool_size=5G` |
+| SQL Server | 8 GB | "max server memory", leaving 25–35% to OS/SQLOS | 0.625 × 8192 MB, leaving **37.5%** ¹ | `MSSQL_MEMORY_LIMIT_MB=5120` |
+| Oracle Free | **2 GB** | fill the licensed database RAM, keeping headroom; SGA:PGA ≈ 70:30 mixed | 1300 + 500 = 1800 MB of 2048 MB (~88%, ~250 MB headroom) | `sga_target=1300M`, `pga_aggregate_target=500M` |
+| Db2 | 8 GB | leave STMM on, memory areas `AUTOMATIC` | none — sized at runtime ² | `SELF_TUNING_MEM ON`, `DATABASE_MEMORY/SORTHEAP/SHEAPTHRES_SHR AUTOMATIC` |
+
+Core-derived and storage-derived knobs use the same treatment: parallelism is set
+to the 4-core count (`max_worker_processes=4`, `max_parallel_workers=4`), and all
+engines assume the same SSD-class storage (`random_page_cost=1.1`,
+`effective_io_concurrency=200`, `innodb_io_capacity=2000/4000`).
+
+**Deviations, stated explicitly** (a reviewer should be able to find every place
+the arithmetic does *not* follow the vendor band):
+
+- ¹ **SQL Server leaves 37.5%, not the recommended 25–35%.** Deliberate: the
+  vendor band assumes a host that swaps under pressure, whereas a hard cgroup
+  limit turns an over-commit into a silent OOM-kill that ruins the run.
+- ² **Db2 has no derivable literal** because its vendor rule *is* "leave it
+  automatic". The one lever that would pin STMM to the cgroup (`INSTANCE_MEMORY`)
+  requires an instance restart and ships commented-out and opt-in.
+- **Oracle sizes to 88% of `M`, not ~62%.** Its 2-GB cap applies to SGA+PGA only
+  (process and OS overhead sit outside it), so the fraction is not comparable
+  with the InnoDB/SQL Server percentages, which are fractions of a cgroup that
+  must *also* hold the server process.
 
 ### How T1 is injected per engine
 
@@ -161,12 +236,17 @@ stdout in the run log.
 
 ## Threats to validity / caveats
 
-- **Edition caps confound cross-engine comparison.** Oracle Database **Free** is
-  licence-capped at ~**2 GB RAM / 2 CPU threads** — it *cannot* use the 8-GB /
-  4-CPU envelope, so its T0→T1 delta will be small and its absolute numbers are
-  not comparable on equal-hardware terms. Db2 **Community** (16 GB / 4 cores) and
-  SQL Server **Developer** (full) fit the envelope; PostgreSQL/MySQL/MariaDB are
-  unrestricted. Disclose this in the paper.
+- **Edition caps confound cross-engine comparison — this is the headline caveat.**
+  Oracle Database **Free** is licence-capped at ~**2 GB RAM / 2 CPU threads** — it
+  *cannot* use the 8-GB / 4-CPU envelope, so its T0→T1 delta will be small (near
+  noise) and its **absolute J/op is not comparable on equal-hardware terms** with
+  the other engines. This, not the differing knob values, is the real limit on
+  cross-engine comparability: the tuning *procedure* is uniform (see "How each T1
+  number is derived"), but Oracle's effective limit `M` is 4× smaller. Db2
+  **Community** (16 GB / 4 cores) and SQL Server **Developer** (full) fit the
+  envelope; PostgreSQL/MySQL/MariaDB are unrestricted. Disclose this in the paper,
+  and prefer within-engine T0→T1→T2 deltas over cross-engine absolutes wherever
+  Oracle Free is in the comparison.
 - **Oracle / Db2 T1 are best-effort and need one VERIFY run.** Could not be
   executed offline. Check the "Tune …" flow step's stdout in the run log to
   confirm the parameters actually applied:
