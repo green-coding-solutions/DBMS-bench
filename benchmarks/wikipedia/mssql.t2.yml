@@ -1,0 +1,31 @@
+---
+name: BenchBase MSSQL Wikipedia benchmark (T2 workload-aware)
+author: Didi Hoffmann <didi@green-coding.berlin)
+description: >
+  Wikipedia (BenchBase) on SQL Server, tuning tier T2 (read-mostly serving). Only
+  injectable lever is max server memory (already set in T1) — finer tuning needs
+  sqlcmd (absent in the Linux image). CONFIG-PARITY (thin) T2 = T1. See TUNING.md.
+
+compose-file: !include compose.yml
+
+custom_metrics:
+  wikipedia_requests:
+    unit: Wikipedia request
+    sci: true
+
+services:
+  mssql:
+    environment:
+      MSSQL_MEMORY_LIMIT_MB: "5120"
+  postgres: # unused — empty key removes the service
+  mariadb: # unused — empty key removes the service
+  mysql: # unused — empty key removes the service
+  oracle: # unused — empty key removes the service
+  db2: # unused — empty key removes the service
+  hammerdb: # unused — empty key removes the service
+  benchbase:
+    depends_on:
+      mssql:
+        condition: service_healthy
+
+flow: !include ['mssql.yml', 'flow']

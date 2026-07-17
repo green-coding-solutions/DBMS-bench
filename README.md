@@ -50,6 +50,28 @@ We currently run five benchmarks:
 
 The three BenchBase benchmarks cover **5** engines — there is no Db2 BenchBase profile, so Db2 has TPC-C/TPC-H only.
 
+## Tuning tiers
+
+To study energy vs. tuning effort, each scenario comes in tiers. Tier files sit next to the default and share the
+default's flow (only the *engine configuration* changes between tiers), so `run_on_cluster.py` discovers them
+automatically:
+
+- **T0 — default**: `benchmarks/<benchmark>/<db>.yml` (stock container).
+- **T1 — envelope-sized**: `benchmarks/<benchmark>/<db>.t1.yml` — each vendor's own rules-of-thumb sized to the fixed
+  4-CPU / 8-GB container; durability left at default so the T0→T1 delta is pure resource sizing.
+
+```sh
+# default vs. envelope-sized, Postgres TPC-C
+./run_on_cluster.py --machine-id N --filter 'tpcc/pg.yml'
+./run_on_cluster.py --machine-id N --filter 'tpcc/pg.t1.yml'
+./run_on_cluster.py --machine-id N -t 0                    # every T0 scenario
+./run_on_cluster.py --machine-id N -t 1                    # every T1 scenario
+./run_on_cluster.py --machine-id N -t 0 -n                 # preview without submitting
+```
+
+See [TUNING.md](TUNING.md) for per-engine settings, provenance, threats to validity (Oracle Free / Db2 Community
+edition caps, OOM headroom, Oracle/Db2 verify-on-first-run), and the planned T2 (advisor) and T3 (auto-tuner) tiers.
+
 ## Db2 setup
 
 Db2 needs a one-time prep the other engines don't. The `tpcorg/hammerdb` image has no Db2 client, and

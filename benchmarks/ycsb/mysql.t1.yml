@@ -1,0 +1,46 @@
+---
+name: BenchBase MySQL YCSB benchmark (T1 envelope-sized)
+author: Didi Hoffmann <didi@green-coding.berlin)
+description: >
+  YCSB (BenchBase) on MySQL, tuning tier T1 (envelope-sized). Same hardware-sized
+  InnoDB config as tpcc/mysql.t1.yml; durability at default. See TUNING.md.
+
+compose-file: !include compose.yml
+
+custom_metrics:
+  ycsb_requests:
+    unit: YCSB request
+    sci: true
+
+services:
+  # T1 tuning: flags appended to mysqld by the official image entrypoint (it
+  # prepends `mysqld` when the command starts with `-`). Merged over compose.yml.
+  #
+  # Every literal below is recomputable from the 4-CPU / 8-GB envelope alone --
+  # see the derivation table in TUNING.md ("How each T1 number is derived").
+  # InnoDB with O_DIRECT owns the only page cache, so the buffer pool takes ~62%
+  # of the cgroup directly (vendor band: 50-75% of RAM).
+  mysql:
+    command:
+      - "--innodb-buffer-pool-size=5G"           # 62.5% of the 8-GB cgroup
+      - "--innodb-buffer-pool-instances=4"       # 5G / 4 = 1.25 GB each (>= 1 GB rule)
+      - "--innodb-redo-log-capacity=2G"          # MySQL 8.0.30+/9.x redo sizing
+      - "--innodb-flush-method=O_DIRECT"         # avoid double-buffering w/ page cache
+      - "--innodb-flush-log-at-trx-commit=1"     # full durability (engine default, explicit)
+      - "--innodb-io-capacity=2000"              # SSD-class
+      - "--innodb-io-capacity-max=4000"          # SSD-class
+      - "--max-connections=200"
+      - "--table-open-cache=4000"
+  postgres: # unused — empty key removes the service
+  mariadb: # unused — empty key removes the service
+  oracle: # unused — empty key removes the service
+  mssql: # unused — empty key removes the service
+  db2: # unused — empty key removes the service
+  hammerdb: # unused — empty key removes the service
+  benchbase: # load driver; wait for the database to be healthy first
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+# Same benchmark flow as the default (T0) scenario.
+flow: !include ['mysql.yml', 'flow']

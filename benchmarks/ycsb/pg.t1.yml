@@ -1,0 +1,71 @@
+---
+name: BenchBase PostgreSQL YCSB benchmark (T1 envelope-sized)
+author: Didi Hoffmann <didi@green-coding.berlin)
+description: >
+  YCSB (BenchBase) on PostgreSQL, tuning tier T1 (envelope-sized). Same
+  hardware-sized engine config as tpcc/pg.t1.yml; durability left at default.
+  See TUNING.md.
+
+compose-file: !include compose.yml
+
+custom_metrics:
+  ycsb_requests:
+    unit: YCSB request
+    sci: true
+
+services:
+  # T1 tuning: passed as `postgres -c key=val` flags, which the official image's
+  # entrypoint forwards verbatim. Merged over compose.yml's postgres service, so
+  # image / cpus / mem_limit / env / healthcheck are inherited unchanged.
+  #
+  # Every literal below is recomputable from the 4-CPU / 8-GB envelope alone --
+  # see the derivation table in TUNING.md ("How each T1 number is derived").
+  # Postgres reads *through* the OS page cache, so its vendor rule is a 25%
+  # shared_buffers plus a 75% effective_cache_size planner hint -- NOT the ~62%
+  # single-cache sizing InnoDB / SQL Server use. Same rule, different arithmetic.
+  postgres:
+    command:
+      - "postgres"
+      - "-c"
+      - "shared_buffers=2GB"            # 25% of the 8-GB cgroup (PostgreSQL standard)
+      - "-c"
+      - "effective_cache_size=6GB"      # planner hint: 75% (OS page cache, not an allocation)
+      - "-c"
+      - "maintenance_work_mem=512MB"
+      - "-c"
+      - "work_mem=16MB"                 # neutral; TPC-H raises this in T2
+      - "-c"
+      - "wal_buffers=16MB"
+      - "-c"
+      - "min_wal_size=1GB"
+      - "-c"
+      - "max_wal_size=4GB"
+      - "-c"
+      - "checkpoint_completion_target=0.9"
+      - "-c"
+      - "default_statistics_target=100"
+      - "-c"
+      - "random_page_cost=1.1"          # SSD-class storage
+      - "-c"
+      - "effective_io_concurrency=200"  # SSD-class storage
+      - "-c"
+      - "max_worker_processes=4"        # = cpus
+      - "-c"
+      - "max_parallel_workers=4"        # = cpus
+      - "-c"
+      - "max_parallel_workers_per_gather=2"
+      - "-c"
+      - "max_parallel_maintenance_workers=2"
+  mariadb: # unused — empty key removes the service
+  mysql: # unused — empty key removes the service
+  oracle: # unused — empty key removes the service
+  mssql: # unused — empty key removes the service
+  db2: # unused — empty key removes the service
+  hammerdb: # unused — empty key removes the service
+  benchbase: # load driver; wait for the database to be healthy first
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+# Same benchmark flow as the default (T0) scenario.
+flow: !include ['pg.yml', 'flow']

@@ -1,0 +1,45 @@
+---
+name: HammerDB Oracle TPC-C benchmark (T2 workload-aware)
+author: Didi Hoffmann <didi@green-coding.berlin)
+description: >
+  TPC-C on Oracle Database Free, tuning tier T2 (workload-aware, OLTP). T1 SGA/PGA
+  sizing (prepended). Oracle Free's 2 GB / 2-thread cap leaves little OLTP headroom
+  beyond T1 and there is no usable native advisor, so this is a CONFIG-PARITY
+  (thin) T2 = T1 for Oracle on TPC-C. See TUNING.md.
+
+compose-file: !include compose.yml
+
+custom_metrics:
+  sqlop:
+    unit: TPC-C SQL-op
+    sci: true
+
+services:
+  postgres: # empty key will remove the unused service
+  mariadb: # empty key will remove the unused service
+  mysql: # empty key will remove the unused service
+  mssql: # empty key will remove the unused service
+  db2: # empty key will remove the unused service
+  hammerdb:
+    depends_on:
+      oracle:
+        condition: service_healthy
+    environment:
+      LD_LIBRARY_PATH: /home/instantclient_21_18
+
+flow-prepend:
+  - name: Tune Oracle (T1 envelope-sized)
+    container: oracle_container
+    commands:
+      - type: console
+        note: APPLY T1 SGA/PGA SIZING (capped by Oracle Free 2 GB limit)
+        command: |
+          i=0; while [ $i -lt 30 ]; do
+            printf 'WHENEVER SQLERROR CONTINUE\nALTER SYSTEM SET sga_target=1300M SCOPE=BOTH;\nALTER SYSTEM SET pga_aggregate_target=500M SCOPE=BOTH;\nSHOW PARAMETER sga_target\nSHOW PARAMETER pga_aggregate_target\nEXIT\n' \
+              | sqlplus -s -L sys/oracle@//localhost:1521/FREE as sysdba && break
+            i=$((i+1)); sleep 3
+          done; true
+        shell: bash
+        log-stdout: true
+
+flow: !include ['oracle.yml', 'flow']

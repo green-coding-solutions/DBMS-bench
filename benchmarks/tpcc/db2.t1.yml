@@ -1,0 +1,72 @@
+---
+name: HammerDB Db2 TPC-C benchmark (T1 envelope-sized)
+author: Didi Hoffmann <didi@green-coding.berlin)
+description: >
+  TPC-C on IBM Db2, tuning tier T1 (envelope-sized). Db2 self-tunes memory by
+  default (STMM); a prepended flow step ensures STMM is on and the memory areas
+  are AUTOMATIC (all applied online, never restarts, never fails the run). The
+  meaningful envelope lever for Db2 -- capping INSTANCE_MEMORY to the 8-GB cgroup
+  so STMM does not size against mis-detected host RAM -- needs an instance restart
+  and is left as a commented, opt-in block to enable after one VERIFY run.
+  Db2 Community Edition is capped at 16 GB / 4 cores, so the 8-GB/4-CPU envelope
+  fits within its limits (unlike Oracle Free). See TUNING.md.
+
+compose-file: !include compose.yml
+
+custom_metrics:
+  sqlop:
+    unit: TPC-C SQL-op
+    sci: true
+
+services:
+  # db2 service intentionally NOT listed -> kept as-is from compose.yml
+  # (privileged + DBNAME=tpcc default; tuning applied by the prepended flow step).
+  postgres: # empty key will remove the unused service
+  mariadb: # empty key will remove the unused service
+  mysql: # empty key will remove the unused service
+  oracle: # empty key will remove the unused service
+  mssql: # empty key will remove the unused service
+  hammerdb: # Db2-enabled image (build/push with ./db/db2/build-image.sh); wait for Db2
+    image: ribalba/hammerdb-db2:latest
+    depends_on:
+      db2:
+        condition: service_healthy
+
+# T1 tuning runs as a prepended flow step (in the Db2 server container, as
+# db2inst1). Retries until the DB answers, echoes the applied config to stdout
+# for verification, never fails the run.
+#
+# WHY THERE ARE NO NUMBERS HERE: Db2's self-tuning memory manager (STMM) sizes
+# the buffer pool and sort heaps at runtime, so the vendor rule *is* "leave them
+# AUTOMATIC" -- there is no envelope literal to derive. Db2 Community is capped
+# at 16 GB / 4 cores, so the 8-GB / 4-CPU envelope fits (unlike Oracle Free).
+# The one lever that would pin STMM to the cgroup (INSTANCE_MEMORY) needs an
+# instance restart and is left opt-in below.
+# See TUNING.md: "How each T1 number is derived".
+flow-prepend:
+  - name: Tune Db2 (T1 envelope-sized)
+    container: db2_container
+    commands:
+      - type: console
+        note: ENSURE STMM SELF-TUNING + AUTOMATIC MEMORY (online)
+        command: |
+          su -l db2inst1 -c '
+            i=0; while [ $i -lt 40 ]; do db2 connect to tpcc >/dev/null 2>&1 && break; i=$((i+1)); sleep 3; done
+            db2 connect to tpcc
+            db2 update db cfg for tpcc using SELF_TUNING_MEM ON IMMEDIATE
+            db2 update db cfg for tpcc using DATABASE_MEMORY AUTOMATIC IMMEDIATE
+            db2 alter bufferpool IBMDEFAULTBP IMMEDIATE SIZE AUTOMATIC
+            db2 update db cfg for tpcc using SORTHEAP AUTOMATIC SHEAPTHRES_SHR AUTOMATIC IMMEDIATE
+            db2 get db cfg for tpcc | grep -iE "Self.Tuning|Database memory|Sort heap|Buffer"
+            db2 connect reset
+            # --- OPTIONAL (NEEDS VERIFY): cap instance memory to the 8 GB cgroup so
+            # --- STMM does not size against mis-detected host RAM. Needs a restart;
+            # --- the Catalog step that follows already retries the connection.
+            # db2 update dbm cfg using INSTANCE_MEMORY 1572864   # 6 GB in 4 KB pages
+            # db2stop force; db2start
+          ' || true
+        shell: bash
+        log-stdout: true
+
+# Same benchmark flow as the default (T0) scenario (Catalog -> Build -> Run -> Drop).
+flow: !include ['db2.yml', 'flow']

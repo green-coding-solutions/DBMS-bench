@@ -1,0 +1,131 @@
+---
+name: HammerDB Db2 TPC-H benchmark (T2 workload-aware)
+author: Didi Hoffmann <didi@green-coding.berlin)
+description: >
+  TPC-H on IBM Db2, tuning tier T2 (workload-aware, common/row-store). T1 STMM
+  (prepended) + a post-load optimize step that enables intra-partition
+  parallelism (INTRA_PARALLEL / MAX_QUERYDEGREE / DFT_DEGREE), adds curated
+  analytical indexes, and refreshes statistics (RUNSTATS via reorgchk). Db2's
+  native Design Advisor (db2advis) could supplement this; see TUNING.md.
+  CAVEAT: INTRA_PARALLEL fully engages only after an instance restart — the BLU
+  columnar variant (db2.t2col.yml) is the stronger Db2 analytical design. VERIFY
+  the optimize step's stdout on first run.
+
+compose-file: !include compose.yml
+
+custom_metrics:
+  tpch_queries:
+    unit: TPC-H query
+    sci: true
+
+services:
+  db2:
+    environment:
+      LICENSE: accept
+      DB2INST1_PASSWORD: ibmdb2
+      DBNAME: tpch
+  postgres: # empty key will remove the unused service
+  mariadb: # empty key will remove the unused service
+  mysql: # empty key will remove the unused service
+  oracle: # empty key will remove the unused service
+  mssql: # empty key will remove the unused service
+  hammerdb:
+    image: ribalba/hammerdb-db2:latest
+    depends_on:
+      db2:
+        condition: service_healthy
+
+flow-prepend:
+  - name: Tune Db2 (T1 envelope-sized)
+    container: db2_container
+    commands:
+      - type: console
+        note: ENSURE STMM SELF-TUNING + AUTOMATIC MEMORY (online)
+        command: |
+          su -l db2inst1 -c '
+            i=0; while [ $i -lt 40 ]; do db2 connect to tpch >/dev/null 2>&1 && break; i=$((i+1)); sleep 3; done
+            db2 connect to tpch
+            db2 update db cfg for tpch using SELF_TUNING_MEM ON IMMEDIATE
+            db2 update db cfg for tpch using DATABASE_MEMORY AUTOMATIC IMMEDIATE
+            db2 connect reset
+          ' || true
+        shell: bash
+        log-stdout: true
+
+flow:
+  # Db2 is excluded from the paper (kept only for benchmarking), so enlarging its
+  # undersized default transaction log here is fine. Without this the bulk load fails
+  # with SQL0964C (log full).
+  - name: Size Db2 transaction log
+    container: db2_container
+    commands:
+      - type: console
+        note: ENLARGE TRANSACTION LOG before the bulk load (avoids SQL0964C "log full")
+        command: |
+          su -l db2inst1 -c '
+            i=0; while [ $i -lt 40 ]; do db2 connect to tpch >/dev/null 2>&1 && break; i=$((i+1)); sleep 3; done
+            db2 connect reset
+            db2 update db cfg for tpch using LOGFILSIZ 8192 LOGPRIMARY 16 LOGSECOND 48
+            db2 force application all
+            db2 deactivate db tpch
+            db2 get db cfg for tpch | grep -iE "Log file size|primary log|secondary log"
+          ' || true
+        shell: bash
+        log-stdout: true
+  - name: Catalog Db2
+    container: hammerdb_container
+    commands:
+      - type: console
+        note: CATALOG REMOTE DB2
+        command: chmod -R u+rwX /database/config/db2inst1/sqllib 2>/dev/null; rm -f /database/config/db2inst1/sqllib/db2nodes.cfg; echo "0 $(hostname) 0" > /database/config/db2inst1/sqllib/db2nodes.cfg && . /database/config/db2inst1/sqllib/db2profile && { db2 uncatalog database tpch; db2 uncatalog node db2node; true; } && db2 catalog tcpip node db2node remote db2_container server 50000 && db2 catalog database tpch at node db2node && db2 terminate && (i=0; while [ $i -lt 30 ]; do db2 connect to tpch >/dev/null 2>&1 && db2 connect reset >/dev/null 2>&1 && break; i=$((i+1)); sleep 3; done)
+        shell: sh
+        log-stdout: true
+  - name: Build Schema
+    container: hammerdb_container
+    commands:
+      - type: console
+        note: RUN HAMMERDB BUILD
+        command: . /database/config/db2inst1/sqllib/db2profile && cd /home/HammerDB-5.0 && ./hammerdbcli auto /tmp/repo/db/db2/tpch/db2_tproch_buildschema.tcl | tee /dev/stderr | awk '/query [0-9]+ completed in/{q++} END{if(q>0){"date +%s"|getline ts; printf("%s000000 tpch_queries=%d\n", ts, q)}}'
+        shell: sh
+        log-stdout: true
+        read-sci-stdout: true
+  - name: Optimize schema (T2)
+    container: db2_container
+    commands:
+      - type: console
+        note: T2 PARALLELISM + CURATED INDEXES + RUNSTATS (non-fatal; VERIFY)
+        command: |
+          su -l db2inst1 -c '
+            db2 update dbm cfg using INTRA_PARALLEL YES
+            db2 update dbm cfg using MAX_QUERYDEGREE 4
+            db2 connect to tpch
+            db2 update db cfg for tpch using DFT_DEGREE 4
+            db2 "create index t2_l_shipdate on lineitem(l_shipdate)"
+            db2 "create index t2_l_partkey on lineitem(l_partkey)"
+            db2 "create index t2_l_suppkey on lineitem(l_suppkey)"
+            db2 "create index t2_o_orderdate on orders(o_orderdate)"
+            db2 "create index t2_o_custkey on orders(o_custkey)"
+            db2 "create index t2_ps_suppkey on partsupp(ps_suppkey)"
+            db2 reorgchk update statistics on table all
+            db2 connect reset
+          ' || true
+        shell: bash
+        log-stdout: true
+  - name: Run Queries
+    container: hammerdb_container
+    commands:
+      - type: console
+        note: RUN HAMMERDB QUERIES
+        command: . /database/config/db2inst1/sqllib/db2profile && cd /home/HammerDB-5.0 && ./hammerdbcli auto /tmp/repo/db/db2/tpch/db2_tproch_run.tcl | tee /dev/stderr | awk 'END{"date +%s"|getline ts; printf("%s000000 tpch_queries=22\n", ts)}'
+        shell: sh
+        log-stdout: true
+        read-sci-stdout: true
+  - name: Drop Schema
+    container: hammerdb_container
+    commands:
+      - type: console
+        note: RUN HAMMERDB DROP
+        command: . /database/config/db2inst1/sqllib/db2profile && cd /home/HammerDB-5.0 && ./hammerdbcli auto /tmp/repo/db/db2/tpch/db2_tproch_deleteschema.tcl | tee /dev/stderr | awk '/query [0-9]+ completed in/{q++} END{if(q>0){"date +%s"|getline ts; printf("%s000000 tpch_queries=%d\n", ts, q)}}'
+        shell: sh
+        log-stdout: true
+        read-sci-stdout: true

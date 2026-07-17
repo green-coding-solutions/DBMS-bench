@@ -1,0 +1,90 @@
+---
+name: HammerDB MySQL TPC-H benchmark (T2 workload-aware)
+author: Didi Hoffmann <didi@green-coding.berlin)
+description: >
+  TPC-H on MySQL, tuning tier T2 (workload-aware). T1 InnoDB sizing + OLAP session
+  buffers (large join/sort/tmp-table memory) since MySQL cannot parallelise a
+  single analytical query. A post-load "optimize" step adds curated analytical
+  indexes (non-fatal, --force) and refreshes optimizer statistics. No columnar
+  sub-tier (MySQL has no column store). See TUNING.md.
+
+compose-file: !include compose.yml
+
+custom_metrics:
+  tpch_queries:
+    unit: TPC-H query
+    sci: true
+
+services:
+  mysql:
+    command:
+      - "--innodb-buffer-pool-size=5G"
+      - "--innodb-buffer-pool-instances=4"
+      - "--innodb-redo-log-capacity=2G"
+      - "--innodb-flush-method=O_DIRECT"
+      - "--innodb-flush-log-at-trx-commit=1"
+      - "--innodb-io-capacity=2000"
+      - "--innodb-io-capacity-max=4000"
+      - "--max-connections=200"
+      - "--table-open-cache=4000"
+      - "--join-buffer-size=128M"            # T2: large hash joins for OLAP
+      - "--sort-buffer-size=32M"             # T2: ORDER BY / GROUP BY
+      - "--read-rnd-buffer-size=16M"
+      - "--tmp-table-size=512M"              # T2: keep big GROUP BY temp tables in memory
+      - "--max-heap-table-size=512M"
+      - "--innodb-parallel-read-threads=4"   # T2: parallel scans (MySQL 8+)
+  postgres: # empty key will remove the unused service
+  mariadb: # empty key will remove the unused service
+  oracle: # empty key will remove the unused service
+  mssql: # empty key will remove the unused service
+  db2: # empty key will remove the unused service
+  hammerdb:
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+flow:
+  - name: Build Schema
+    container: hammerdb_container
+    commands:
+      - type: console
+        note: RUN HAMMERDB BUILD
+        command: ./hammerdbcli auto /tmp/repo/db/mysql/tpch/mysql_tproch_buildschema.tcl | tee /dev/stderr | awk '/query [0-9]+ completed in/{q++} END{if(q>0){"date +%s"|getline ts; printf("%s000000 tpch_queries=%d\n", ts, q)}}'
+        shell: sh
+        log-stdout: true
+        read-sci-stdout: true
+  - name: Optimize schema (T2)
+    container: mysql_container
+    commands:
+      - type: console
+        note: T2 CURATED INDEXES + ANALYZE (non-fatal; VERIFY names)
+        command: |
+          mysql -uroot -pmysql --force tpch -e "
+            CREATE INDEX t2_l_shipdate ON lineitem (l_shipdate);
+            CREATE INDEX t2_l_partkey  ON lineitem (l_partkey);
+            CREATE INDEX t2_l_suppkey  ON lineitem (l_suppkey);
+            CREATE INDEX t2_o_orderdate ON orders (o_orderdate);
+            CREATE INDEX t2_o_custkey   ON orders (o_custkey);
+            CREATE INDEX t2_ps_suppkey  ON partsupp (ps_suppkey);
+          " || true
+          mysqlcheck -uroot -pmysql --analyze --databases tpch || true
+        shell: bash
+        log-stdout: true
+  - name: Run Queries
+    container: hammerdb_container
+    commands:
+      - type: console
+        note: RUN HAMMERDB QUERIES
+        command: ./hammerdbcli auto /tmp/repo/db/mysql/tpch/mysql_tproch_run.tcl | tee /dev/stderr | awk 'END{"date +%s"|getline ts; printf("%s000000 tpch_queries=22\n", ts)}'
+        shell: sh
+        log-stdout: true
+        read-sci-stdout: true
+  - name: Drop Schema
+    container: hammerdb_container
+    commands:
+      - type: console
+        note: RUN HAMMERDB DROP
+        command: ./hammerdbcli auto /tmp/repo/db/mysql/tpch/mysql_tproch_deleteschema.tcl | tee /dev/stderr | awk '/query [0-9]+ completed in/{q++} END{if(q>0){"date +%s"|getline ts; printf("%s000000 tpch_queries=%d\n", ts, q)}}'
+        shell: sh
+        log-stdout: true
+        read-sci-stdout: true

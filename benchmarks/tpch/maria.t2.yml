@@ -1,0 +1,87 @@
+---
+name: HammerDB MariaDB TPC-H benchmark (T2 workload-aware)
+author: Didi Hoffmann <didi@green-coding.berlin)
+description: >
+  TPC-H on MariaDB, tuning tier T2 (workload-aware). T1 InnoDB sizing + OLAP
+  session buffers (MariaDB has no parallel query). Post-load optimize step adds
+  curated analytical indexes (IF NOT EXISTS) and refreshes statistics. No columnar
+  sub-tier. See TUNING.md.
+
+compose-file: !include compose.yml
+
+custom_metrics:
+  tpch_queries:
+    unit: TPC-H query
+    sci: true
+
+services:
+  mariadb:
+    command:
+      - "--innodb-buffer-pool-size=5G"
+      - "--innodb-log-file-size=2G"
+      - "--innodb-flush-method=O_DIRECT"
+      - "--innodb-flush-log-at-trx-commit=1"
+      - "--innodb-io-capacity=2000"
+      - "--innodb-io-capacity-max=4000"
+      - "--max-connections=200"
+      - "--table-open-cache=4000"
+      - "--join-buffer-size=128M"            # T2: large hash joins for OLAP
+      - "--sort-buffer-size=32M"
+      - "--read-rnd-buffer-size=16M"
+      - "--tmp-table-size=512M"
+      - "--max-heap-table-size=512M"
+  postgres: # empty key will remove the unused service
+  mysql: # empty key will remove the unused service
+  oracle: # empty key will remove the unused service
+  mssql: # empty key will remove the unused service
+  db2: # empty key will remove the unused service
+  hammerdb:
+    depends_on:
+      mariadb:
+        condition: service_healthy
+
+flow:
+  - name: Build Schema
+    container: hammerdb_container
+    commands:
+      - type: console
+        note: RUN HAMMERDB BUILD
+        command: ./hammerdbcli auto /tmp/repo/db/maria/tpch/maria_tproch_buildschema.tcl | tee /dev/stderr | awk '/query [0-9]+ completed in/{q++} END{if(q>0){"date +%s"|getline ts; printf("%s000000 tpch_queries=%d\n", ts, q)}}'
+        shell: sh
+        log-stdout: true
+        read-sci-stdout: true
+  - name: Optimize schema (T2)
+    container: mariadb_container
+    commands:
+      - type: console
+        note: T2 CURATED INDEXES + ANALYZE (non-fatal; VERIFY names)
+        command: |
+          mariadb -uroot -pmaria tpch -e "
+            CREATE INDEX IF NOT EXISTS t2_l_shipdate ON lineitem (l_shipdate);
+            CREATE INDEX IF NOT EXISTS t2_l_partkey  ON lineitem (l_partkey);
+            CREATE INDEX IF NOT EXISTS t2_l_suppkey  ON lineitem (l_suppkey);
+            CREATE INDEX IF NOT EXISTS t2_o_orderdate ON orders (o_orderdate);
+            CREATE INDEX IF NOT EXISTS t2_o_custkey   ON orders (o_custkey);
+            CREATE INDEX IF NOT EXISTS t2_ps_suppkey  ON partsupp (ps_suppkey);
+          " || true
+          mariadb-check -uroot -pmaria --analyze --databases tpch || true
+        shell: bash
+        log-stdout: true
+  - name: Run Queries
+    container: hammerdb_container
+    commands:
+      - type: console
+        note: RUN HAMMERDB QUERIES
+        command: ./hammerdbcli auto /tmp/repo/db/maria/tpch/maria_tproch_run.tcl | tee /dev/stderr | awk 'END{"date +%s"|getline ts; printf("%s000000 tpch_queries=22\n", ts)}'
+        shell: sh
+        log-stdout: true
+        read-sci-stdout: true
+  - name: Drop Schema
+    container: hammerdb_container
+    commands:
+      - type: console
+        note: RUN HAMMERDB DROP
+        command: ./hammerdbcli auto /tmp/repo/db/maria/tpch/maria_tproch_deleteschema.tcl | tee /dev/stderr | awk '/query [0-9]+ completed in/{q++} END{if(q>0){"date +%s"|getline ts; printf("%s000000 tpch_queries=%d\n", ts, q)}}'
+        shell: sh
+        log-stdout: true
+        read-sci-stdout: true

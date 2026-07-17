@@ -1,0 +1,44 @@
+---
+name: HammerDB MariaDB TPC-H benchmark (T1 envelope-sized)
+author: Didi Hoffmann <didi@green-coding.berlin)
+description: >
+  TPC-H on MariaDB, tuning tier T1 (envelope-sized). Identical engine config to
+  tpcc/maria.t1.yml (hardware-sized, workload-agnostic). See TUNING.md.
+
+compose-file: !include compose.yml
+
+custom_metrics:
+  tpch_queries:
+    unit: TPC-H query
+    sci: true
+
+services:
+  # T1 tuning: flags appended to mariadbd by the image entrypoint. Merged over
+  # compose.yml. (buffer_pool_instances is omitted: a no-op on modern MariaDB.)
+  #
+  # Every literal below is recomputable from the 4-CPU / 8-GB envelope alone --
+  # see the derivation table in TUNING.md ("How each T1 number is derived").
+  # Same InnoDB rule as mysql.t1.yml: O_DIRECT makes the buffer pool the only
+  # cache, so it takes ~62% of the cgroup directly (vendor band: 50-75% of RAM).
+  mariadb:
+    command:
+      - "--innodb-buffer-pool-size=5G"           # 62.5% of the 8-GB cgroup
+      - "--innodb-log-file-size=2G"              # redo log sizing
+      - "--innodb-flush-method=O_DIRECT"         # avoid double-buffering w/ page cache
+      - "--innodb-flush-log-at-trx-commit=1"     # full durability (engine default, explicit)
+      - "--innodb-io-capacity=2000"              # SSD-class
+      - "--innodb-io-capacity-max=4000"          # SSD-class
+      - "--max-connections=200"
+      - "--table-open-cache=4000"
+  postgres: # empty key will remove the unused service
+  mysql: # empty key will remove the unused service
+  oracle: # empty key will remove the unused service
+  mssql: # empty key will remove the unused service
+  db2: # empty key will remove the unused service
+  hammerdb: # wait for MariaDB to finish starting up before benchmarking
+    depends_on:
+      mariadb:
+        condition: service_healthy
+
+# Same benchmark flow as the default (T0) scenario.
+flow: !include ['maria.yml', 'flow']

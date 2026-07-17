@@ -1,0 +1,46 @@
+---
+name: BenchBase MariaDB Wikipedia benchmark (T1 envelope-sized)
+author: Didi Hoffmann <didi@green-coding.berlin)
+description: >
+  Wikipedia (BenchBase) on MariaDB, tuning tier T1 (envelope-sized). Same
+  hardware-sized InnoDB config as tpcc/maria.t1.yml; durability at default.
+  See TUNING.md.
+
+compose-file: !include compose.yml
+
+custom_metrics:
+  wikipedia_requests:
+    unit: Wikipedia request
+    sci: true
+
+services:
+  # T1 tuning: flags appended to mariadbd by the image entrypoint. Merged over
+  # compose.yml. (buffer_pool_instances is omitted: a no-op on modern MariaDB.)
+  #
+  # Every literal below is recomputable from the 4-CPU / 8-GB envelope alone --
+  # see the derivation table in TUNING.md ("How each T1 number is derived").
+  # Same InnoDB rule as mysql.t1.yml: O_DIRECT makes the buffer pool the only
+  # cache, so it takes ~62% of the cgroup directly (vendor band: 50-75% of RAM).
+  mariadb:
+    command:
+      - "--innodb-buffer-pool-size=5G"           # 62.5% of the 8-GB cgroup
+      - "--innodb-log-file-size=2G"              # redo log sizing
+      - "--innodb-flush-method=O_DIRECT"         # avoid double-buffering w/ page cache
+      - "--innodb-flush-log-at-trx-commit=1"     # full durability (engine default, explicit)
+      - "--innodb-io-capacity=2000"              # SSD-class
+      - "--innodb-io-capacity-max=4000"          # SSD-class
+      - "--max-connections=200"
+      - "--table-open-cache=4000"
+  postgres: # unused — empty key removes the service
+  mysql: # unused — empty key removes the service
+  oracle: # unused — empty key removes the service
+  mssql: # unused — empty key removes the service
+  db2: # unused — empty key removes the service
+  hammerdb: # unused — empty key removes the service
+  benchbase: # load driver; wait for the database to be healthy first
+    depends_on:
+      mariadb:
+        condition: service_healthy
+
+# Same benchmark flow as the default (T0) scenario.
+flow: !include ['maria.yml', 'flow']

@@ -9,7 +9,7 @@ parameters, otherwise the energy/throughput numbers are not comparable.
 Because GMT refuses to `!include` a compose file from a parent directory, each
 benchmark folder (``benchmarks/tpcc/``, ``benchmarks/tpch/``, ...) carries its
 own copy of ``compose.yml`` next to the usage scenarios. Copies drift, so this
-script enforces three invariants:
+script enforces four invariants:
 
   1. Every ``compose.yml`` in the repo is byte-for-byte identical (the per-folder
      copies must match the root source of truth).
@@ -19,6 +19,10 @@ script enforces three invariants:
   3. For each benchmark, the per-engine driver scripts use the same fairness
      knobs (virtual users, scale factor, terminals, duration, ...) across all
      databases.
+  4. For each engine, the T1 tuning payload is byte-for-byte identical across all
+     benchmarks — comments included. T1 is hardware-sized and workload-agnostic
+     (TUNING.md), so a per-benchmark difference is drift, and a *missing comment*
+     is the provenance a reviewer needs to reproduce the number going missing.
 
 Exit code is 0 when everything is consistent, 1 otherwise. Run it from anywhere;
 paths are resolved relative to this file.
@@ -75,6 +79,20 @@ TCL_KNOBS = {
 # <weights> live inside <works>/<work>; the rest are top-level.
 XML_TOP_KNOBS = ["scalefactor", "terminals", "batchsize", "isolation"]
 XML_WORK_KNOBS = ["time", "rate", "weights"]
+
+
+def tier_of(path: Path) -> str:
+    """Map a driver-script filename to its tuning tier via the dotted suffix
+    before the extension: ``pg_tproch_run.tcl`` -> ``base``,
+    ``pg_tproch_run.t2.tcl`` -> ``t2``, ``..._buildschema.t2col.tcl`` -> ``t2col``,
+    ``pg_wikipedia_config.xml`` -> ``base``, ``..._config.t2.xml`` -> ``t2``.
+
+    Tiers add driver-script variants that deliberately change tuning knobs (e.g.
+    the parallel degree), so fairness knobs are compared WITHIN a tier across
+    engines, never across tiers."""
+    stem = path.name[: -len(path.suffix)] if path.suffix else path.name
+    parts = stem.split(".")
+    return parts[1] if len(parts) > 1 else "base"
 
 
 class Reporter:
@@ -204,15 +222,17 @@ def check_compose_resources(rep: Reporter) -> None:
 # --------------------------------------------------------------------------- #
 # Check 3: benchmark parameters are the same for every database
 # --------------------------------------------------------------------------- #
-def extract_tcl_knobs(benchmark: str, db: str) -> dict[str, str] | None:
-    """Extract fairness knobs from a HammerDB engine's build + run scripts.
-    Returns None if the engine has no scripts for this benchmark."""
+def extract_tcl_knobs(benchmark: str, db: str, tier: str = "base") -> dict[str, str] | None:
+    """Extract fairness knobs from a HammerDB engine's build + run scripts for one
+    tuning tier. Returns None if the engine has no scripts for that tier."""
     bench_dir = REPO / "db" / db / benchmark
     if not bench_dir.is_dir():
         return None
 
     text = ""
     for tcl in sorted(bench_dir.glob("*.tcl")):
+        if tier_of(tcl) != tier:
+            continue
         text += "\n" + tcl.read_text()
     if not text.strip():
         return None
@@ -230,14 +250,14 @@ def extract_tcl_knobs(benchmark: str, db: str) -> dict[str, str] | None:
     return found
 
 
-def extract_xml_knobs(benchmark: str, db: str) -> dict[str, str] | None:
-    """Extract fairness knobs from a BenchBase engine's XML config. Returns None
-    if the engine has no config for this benchmark."""
+def extract_xml_knobs(benchmark: str, db: str, tier: str = "base") -> dict[str, str] | None:
+    """Extract fairness knobs from a BenchBase engine's XML config for one tuning
+    tier. Returns None if the engine has no config for that tier."""
     bench_dir = REPO / "db" / db / benchmark
     if not bench_dir.is_dir():
         return None
 
-    configs = sorted(bench_dir.glob("*config*.xml"))
+    configs = sorted(c for c in bench_dir.glob("*config*.xml") if tier_of(c) == tier)
     if not configs:
         return None
 
@@ -258,50 +278,219 @@ def extract_xml_knobs(benchmark: str, db: str) -> dict[str, str] | None:
     return found
 
 
+def discover_tiers(benchmark: str, is_hammerdb: bool) -> list[str]:
+    """Every tuning tier that has driver scripts for this benchmark, across all
+    engines. 'base' is always first; the rest (t1, t2, t2col, ...) follow sorted."""
+    pattern = "*.tcl" if is_hammerdb else "*config*.xml"
+    tiers: set[str] = set()
+    for db in DATABASES:
+        bench_dir = REPO / "db" / db / benchmark
+        if not bench_dir.is_dir():
+            continue
+        for f in bench_dir.glob(pattern):
+            tiers.add(tier_of(f))
+    tiers.discard("base")
+    return ["base", *sorted(tiers)]
+
+
 def check_benchmark_params(rep: Reporter) -> None:
-    rep.section("3. Benchmark parameters are equal across databases")
+    rep.section("3. Benchmark parameters are equal across databases (per tier)")
 
     for benchmark in BENCHMARKS:
-        extractor = (
-            extract_tcl_knobs if benchmark in HAMMERDB_BENCHMARKS else extract_xml_knobs
-        )
+        is_hammerdb = benchmark in HAMMERDB_BENCHMARKS
+        extractor = extract_tcl_knobs if is_hammerdb else extract_xml_knobs
 
-        per_db = {}
-        for db in DATABASES:
-            knobs = extractor(benchmark, db)
-            if knobs is None:
+        for tier in discover_tiers(benchmark, is_hammerdb):
+            per_db = {}
+            for db in DATABASES:
+                knobs = extractor(benchmark, db, tier)
+                if knobs is None:
+                    continue
+                # A sub-tier (t2, t2col, ...) only restates the knobs it
+                # re-tunes; everything else is inherited from the engine's base
+                # tier. Most importantly build-phase knobs (e.g.
+                # num_tpch_threads) live in the base buildschema and a run-only
+                # sub-tier reuses them. Fill those in from base so we compare the
+                # effective config, not just what the sub-tier happens to repeat.
+                if tier != "base":
+                    base = extractor(benchmark, db, "base")
+                    if base is not None:
+                        knobs = {**base, **knobs}
+                per_db[db] = knobs
+
+            label = benchmark if tier == "base" else f"{benchmark} [{tier}]"
+            print(f"\n  [{label}] engines: {', '.join(per_db) or '(none found)'}")
+            if not per_db:
+                if tier == "base":
+                    rep.warn(f"{label}: no driver scripts found")
                 continue
-            per_db[db] = knobs
 
-        print(f"\n  [{benchmark}] engines: {', '.join(per_db) or '(none found)'}")
-        if not per_db:
-            rep.warn(f"{benchmark}: no driver scripts found")
+            # A tier only one engine implements (e.g. columnar t2col on mssql) has
+            # nothing to compare across engines — acknowledge and move on.
+            if tier != "base" and len(per_db) == 1:
+                rep.ok(f"{label}: only {next(iter(per_db))} implements this tier")
+                continue
+
+            all_knobs = sorted({k for knobs in per_db.values() for k in knobs})
+            if not all_knobs:
+                rep.warn(f"{label}: no known fairness knobs found in driver scripts")
+                continue
+
+            for knob in all_knobs:
+                present = {db: knobs[knob] for db, knobs in per_db.items() if knob in knobs}
+                absent = [db for db in per_db if knob not in per_db[db]]
+                distinct = set(present.values())
+
+                if len(distinct) == 1 and not absent:
+                    rep.ok(f"{label}.{knob} = {next(iter(distinct))} (all engines)")
+                elif len(distinct) == 1 and absent:
+                    # Same value where defined, but some engines don't set it.
+                    rep.warn(
+                        f"{label}.{knob} = {next(iter(distinct))} but not set for: "
+                        f"{', '.join(absent)}"
+                    )
+                else:
+                    rep.fail(
+                        f"{label}.{knob} differs: "
+                        + ", ".join(f"{db}={val}" for db, val in sorted(present.items()))
+                        + (f" (absent: {', '.join(absent)})" if absent else "")
+                    )
+
+
+# --------------------------------------------------------------------------- #
+# Check 4: the T1 tuning payload is identical across benchmarks, per engine
+# --------------------------------------------------------------------------- #
+# The compose service that each engine's scenarios tune.
+T1_SERVICE_OF = {
+    "pg": "postgres",
+    "maria": "mariadb",
+    "mysql": "mysql",
+    "oracle": "oracle",
+    "mssql": "mssql",
+    "db2": "db2",
+}
+
+# Db2 is the one engine whose *service* block legitimately varies per benchmark
+# (it carries DBNAME=tpcc vs tpch), and whose flow-prepend names that database.
+# So compare only its flow-prepend, with the database name normalised away.
+T1_FLOW_ONLY = {"db2"}
+T1_DBNAME_RE = re.compile(r"\b(?:tpcc|tpch)\b")
+
+
+def _indent(line: str) -> int:
+    return len(line) - len(line.lstrip(" "))
+
+
+def extract_t1_payload(benchmark: str, db: str) -> str | None:
+    """Return the T1 *tuning payload* of benchmarks/<benchmark>/<db>.t1.yml as raw
+    text: the engine's service block (with the comments that justify each knob),
+    plus the `flow-prepend:` tuning step for engines that have no command-flag
+    config (Oracle, Db2). None when the scenario does not exist.
+
+    Everything else in the file — description, custom_metrics, which services are
+    removed, the load driver, the `flow:` include — is benchmark-specific and is
+    deliberately not compared. Raw text rather than parsed YAML, because the
+    per-knob provenance comments are exactly what must not drift.
+    """
+    path = REPO / "benchmarks" / benchmark / f"{db}.t1.yml"
+    if not path.is_file():
+        return None
+
+    lines = path.read_text().splitlines()
+    chunks: list[str] = []
+
+    if db not in T1_FLOW_ONLY:
+        svc = T1_SERVICE_OF[db]
+        si = next((i for i, l in enumerate(lines) if l.rstrip() == "services:"), None)
+        if si is None:
+            return None
+        j = si + 1
+        block: list[str] = []
+        # the engine preamble: contiguous indent-2 comments right under `services:`
+        while j < len(lines) and lines[j].startswith("  #"):
+            block.append(lines[j])
+            j += 1
+        # the engine's own service key and its indented body (absent for Oracle,
+        # which is kept as-is from compose.yml and tuned via flow-prepend)
+        if j < len(lines) and lines[j].rstrip() == f"  {svc}:":
+            block.append(lines[j])
+            j += 1
+            while j < len(lines) and (not lines[j].strip() or _indent(lines[j]) >= 4):
+                block.append(lines[j])
+                j += 1
+        while block and not block[-1].strip():
+            block.pop()
+        chunks.append("\n".join(block))
+
+    fi = next((i for i, l in enumerate(lines) if l.rstrip() == "flow-prepend:"), None)
+    if fi is not None:
+        start = fi
+        while start - 1 >= 0 and lines[start - 1].startswith("#"):
+            start -= 1
+        end = fi + 1
+        while end < len(lines) and (
+            not lines[end].strip() or lines[end].startswith((" ", "\t"))
+        ):
+            end += 1
+        block = lines[start:end]
+        while block and not block[-1].strip():
+            block.pop()
+        chunks.append("\n".join(block))
+
+    payload = "\n".join(c for c in chunks if c.strip())
+    if db in T1_FLOW_ONLY:
+        payload = T1_DBNAME_RE.sub("@DB@", payload)
+    return payload or None
+
+
+def check_t1_identical(rep: Reporter) -> None:
+    rep.section("4. T1 tuning payload is identical across benchmarks (per engine)")
+
+    for db in DATABASES:
+        payloads = {
+            b: p
+            for b in BENCHMARKS
+            if (p := extract_t1_payload(b, db)) is not None
+        }
+        if not payloads:
+            rep.warn(f"{db}: no T1 scenarios found")
+            continue
+        if len(payloads) == 1:
+            rep.ok(f"{db}.t1: only {next(iter(payloads))} ships this engine")
             continue
 
-        all_knobs = sorted({k for knobs in per_db.values() for k in knobs})
-        if not all_knobs:
-            rep.warn(f"{benchmark}: no known fairness knobs found in driver scripts")
+        groups: dict[str, list[str]] = {}
+        for bench, payload in payloads.items():
+            groups.setdefault(payload, []).append(bench)
+
+        if len(groups) == 1:
+            note = " (flow-prepend only; DBNAME normalised)" if db in T1_FLOW_ONLY else ""
+            rep.ok(f"{db}.t1 = same tuning in {', '.join(sorted(payloads))}{note}")
             continue
 
-        for knob in all_knobs:
-            present = {db: knobs[knob] for db, knobs in per_db.items() if knob in knobs}
-            absent = [db for db in per_db if knob not in per_db[db]]
-            distinct = set(present.values())
-
-            if len(distinct) == 1 and not absent:
-                rep.ok(f"{benchmark}.{knob} = {next(iter(distinct))} (all engines)")
-            elif len(distinct) == 1 and absent:
-                # Same value where defined, but some engines don't set it.
-                rep.warn(
-                    f"{benchmark}.{knob} = {next(iter(distinct))} but not set for: "
-                    f"{', '.join(absent)}"
-                )
+        rep.fail(
+            f"{db}.t1 tuning payload differs across benchmarks: "
+            + " | ".join("{" + ", ".join(sorted(bs)) + "}" for bs in groups.values())
+        )
+        # Point at the first divergent line so the drift is actionable.
+        ref_bench = sorted(payloads)[0]
+        ref = payloads[ref_bench].splitlines()
+        for bench in sorted(payloads):
+            if bench == ref_bench:
+                continue
+            other = payloads[bench].splitlines()
+            for n, (a, b) in enumerate(zip(ref, other), start=1):
+                if a != b:
+                    print(f"      {ref_bench} vs {bench}, first diff at payload line {n}:")
+                    print(f"        - {a.strip()}")
+                    print(f"        + {b.strip()}")
+                    break
             else:
-                rep.fail(
-                    f"{benchmark}.{knob} differs: "
-                    + ", ".join(f"{db}={val}" for db, val in sorted(present.items()))
-                    + (f" (absent: {', '.join(absent)})" if absent else "")
-                )
+                if len(ref) != len(other):
+                    print(
+                        f"      {bench}: {len(other)} payload lines vs "
+                        f"{len(ref)} in {ref_bench}"
+                    )
 
 
 def main() -> int:
@@ -311,6 +500,7 @@ def main() -> int:
     check_compose_identical(rep)
     check_compose_resources(rep)
     check_benchmark_params(rep)
+    check_t1_identical(rep)
 
     print()
     if rep.failures:
