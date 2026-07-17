@@ -1,0 +1,79 @@
+---
+name: HammerDB Db2 TPC-C benchmark
+author: Didi Hoffmann <didi@green-coding.berlin)
+description: Benchmarks IBM Db2 with HammerDB using TPC-C
+
+compose-file: !include compose.yml
+
+custom_metrics:
+  sqlop:
+    unit: TPC-C SQL-op
+    sci: true
+
+services:
+  postgres: # empty key will remove the unused service
+  mariadb: # empty key will remove the unused service
+  mysql: # empty key will remove the unused service
+  oracle: # empty key will remove the unused service
+  mssql: # empty key will remove the unused service
+  hammerdb: # Db2-enabled image (build/push with ./db/db2/build-image.sh); wait for Db2
+    image: ribalba/hammerdb-db2:latest
+    depends_on:
+      db2:
+        condition: service_healthy
+
+flow:
+  # Db2 is excluded from the paper (no BenchBase profile; Community-edition capped) and
+  # kept only for benchmarking, so enlarging its undersized default transaction log here
+  # is fine. Without this the 80-warehouse bulk load fails with SQL0964C (log full).
+  - name: Size Db2 transaction log
+    container: db2_container
+    commands:
+      - type: console
+        note: ENLARGE TRANSACTION LOG before the bulk load (avoids SQL0964C "log full")
+        command: |
+          su -l db2inst1 -c '
+            i=0; while [ $i -lt 40 ]; do db2 connect to tpcc >/dev/null 2>&1 && break; i=$((i+1)); sleep 3; done
+            db2 connect reset
+            db2 update db cfg for tpcc using LOGFILSIZ 8192 LOGPRIMARY 16 LOGSECOND 48
+            db2 force application all
+            db2 deactivate db tpcc
+            db2 get db cfg for tpcc | grep -iE "Log file size|primary log|secondary log"
+          ' || true
+        shell: bash
+        log-stdout: true
+  - name: Catalog Db2
+    container: hammerdb_container
+    commands:
+      - type: console
+        note: CATALOG REMOTE DB2
+        command: chmod -R u+rwX /database/config/db2inst1/sqllib 2>/dev/null; rm -f /database/config/db2inst1/sqllib/db2nodes.cfg; echo "0 $(hostname) 0" > /database/config/db2inst1/sqllib/db2nodes.cfg && . /database/config/db2inst1/sqllib/db2profile && { db2 uncatalog database tpcc; db2 uncatalog node db2node; true; } && db2 catalog tcpip node db2node remote db2_container server 50000 && db2 catalog database tpcc at node db2node && db2 terminate && (i=0; while [ $i -lt 30 ]; do db2 connect to tpcc >/dev/null 2>&1 && db2 connect reset >/dev/null 2>&1 && break; i=$((i+1)); sleep 3; done)
+        shell: sh
+        log-stdout: true
+  - name: Build Warehouses
+    container: hammerdb_container
+    commands:
+      - type: console
+        note: RUN HAMMERDB BUILD
+        command: . /database/config/db2inst1/sqllib/db2profile && cd /home/HammerDB-5.0 && ./hammerdbcli auto /tmp/repo/db/db2/tpcc/db2_tprocc_buildschema.tcl | tee /dev/stderr | awk '/System achieved [0-9]+ NOPM/ { match($0, /System achieved [0-9]+ NOPM/); "date +%s"|getline ts; printf("%s000000 sqlop=%s\n", ts, substr($0, RSTART+16, RLENGTH-21)) }'
+        shell: sh
+        log-stdout: true
+        read-sci-stdout: true
+  - name: Query Warehouses
+    container: hammerdb_container
+    commands:
+      - type: console
+        note: RUN HAMMERDB SELECTS
+        command: . /database/config/db2inst1/sqllib/db2profile && cd /home/HammerDB-5.0 && ./hammerdbcli auto /tmp/repo/db/db2/tpcc/db2_tprocc_run.tcl | tee /dev/stderr | awk '/System achieved [0-9]+ NOPM/ { match($0, /System achieved [0-9]+ NOPM/); "date +%s"|getline ts; printf("%s000000 sqlop=%s\n", ts, substr($0, RSTART+16, RLENGTH-21)) }'
+        shell: sh
+        log-stdout: true
+        read-sci-stdout: true
+  - name: Drop Warehouses
+    container: hammerdb_container
+    commands:
+      - type: console
+        note: RUN HAMMERDB DROP
+        command: . /database/config/db2inst1/sqllib/db2profile && cd /home/HammerDB-5.0 && ./hammerdbcli auto /tmp/repo/db/db2/tpcc/db2_tprocc_deleteschema.tcl | tee /dev/stderr | awk '/System achieved [0-9]+ NOPM/ { match($0, /System achieved [0-9]+ NOPM/); "date +%s"|getline ts; printf("%s000000 sqlop=%s\n", ts, substr($0, RSTART+16, RLENGTH-21)) }'
+        shell: sh
+        log-stdout: true
+        read-sci-stdout: true
