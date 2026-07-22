@@ -40,7 +40,14 @@ services:
       retries: 10
       start_period: 30s
   mysql:
-    image: mysql:9.7.1-oraclelinux9
+    # Pinned to the 8.4 LTS line on purpose — do not bump to 9.x. MySQL 9.0 removed
+    # mysql_native_password outright, and HammerDB 5.0's bundled mysqltcl has no
+    # TLS-free path for caching_sha2_password (no --get-server-public-key), so every
+    # virtual user fails to authenticate over plaintext TCP. The alternatives (TLS, or
+    # a Unix socket) would make MySQL the only engine not measured over plaintext TCP
+    # and so would bias the cross-engine energy comparison.
+    image: mysql:8.4.10-oraclelinux9
+    command: ["--mysql-native-password=ON", "--authentication-policy=mysql_native_password"]
     container_name: mysql_container
     cpus: 4
     mem_limit: 8g

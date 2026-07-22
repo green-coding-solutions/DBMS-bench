@@ -27,7 +27,7 @@ flow:
     commands:
       - type: console
         note: RUN HAMMERDB BUILD
-        command: ./hammerdbcli auto /tmp/repo/db/maria/tpcc/maria_tprocc_buildschema.tcl
+        command: rc=0; ./hammerdbcli auto /tmp/repo/db/maria/tpcc/maria_tprocc_buildschema.tcl > /tmp/hammerdb-build.log 2>&1 || rc=$?; cat /tmp/hammerdb-build.log >&2; [ "$rc" -eq 0 ] || exit "$rc"; if grep -qE 'FINISHED FAILED|Error in Virtual User' /tmp/hammerdb-build.log; then echo 'HammerDB reported virtual-user failures - see log above' >&2; exit 1; fi
         shell: sh
         log-stdout: true
   - name: Query Warehouses
@@ -35,7 +35,7 @@ flow:
     commands:
       - type: console
         note: RUN HAMMERDB SELECTS
-        command: ./hammerdbcli auto /tmp/repo/db/maria/tpcc/maria_tprocc_run.tcl > /tmp/hammerdb-run.log 2>&1; rc=$?; cat /tmp/hammerdb-run.log >&2; [ "$rc" -eq 0 ] || exit "$rc"; awk '/System achieved [0-9]+ NOPM/ { match($0, /System achieved [0-9]+ NOPM/); v=substr($0, RSTART+16, RLENGTH-21) } END { if (v=="") exit 1; "date +%s"|getline ts; printf("%s000000 sqlop=%s\n", ts, v) }' /tmp/hammerdb-run.log
+        command: rc=0; ./hammerdbcli auto /tmp/repo/db/maria/tpcc/maria_tprocc_run.tcl > /tmp/hammerdb-run.log 2>&1 || rc=$?; cat /tmp/hammerdb-run.log >&2; [ "$rc" -eq 0 ] || exit "$rc"; if grep -qE 'FINISHED FAILED|Error in Virtual User' /tmp/hammerdb-run.log; then echo 'HammerDB reported virtual-user failures - see log above' >&2; exit 1; fi; awk '/System achieved [0-9]+ NOPM/ { match($0, /System achieved [0-9]+ NOPM/); v=substr($0, RSTART+16, RLENGTH-21) } END { if (v=="") exit 1; "date +%s"|getline ts; printf("%s000000 sqlop=%s\n", ts, v) }' /tmp/hammerdb-run.log
         shell: sh
         log-stdout: true
         read-sci-stdout: true

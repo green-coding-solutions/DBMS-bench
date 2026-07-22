@@ -9,3 +9,9 @@ updates:
     directory: "/" # Location of package manifests
     schedule:
       interval: "weekly"
+    ignore:
+      # MySQL must stay on the 8.4 LTS line: 9.x removed mysql_native_password and
+      # HammerDB 5.0 cannot authenticate to caching_sha2_password over plaintext TCP.
+      # See the comment on the mysql service in compose.yml.
+      - dependency-name: "mysql"
+        update-types: ["version-update:semver-major"]

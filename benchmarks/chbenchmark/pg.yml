@@ -44,7 +44,7 @@ flow:
     commands:
       - type: console
         note: BENCHBASE EXECUTE
-        command: cd /benchbase/benchbase-postgres && java -jar benchbase.jar -b tpcc,chbenchmark -c /tmp/repo/db/pg/chbenchmark/pg_chbenchmark_config.xml --create=false --load=false --execute=true > /tmp/benchbase-run.log 2>&1; rc=$?; cat /tmp/benchbase-run.log >&2; [ "$rc" -eq 0 ] || exit "$rc"; awk 'match($0,/measuredRequests=[0-9]+/) {v=substr($0,RSTART+17,RLENGTH-17)} END {if (v=="") exit 1; "date +%s"|getline ts; printf("%s000000 chbenchmark_requests=%s\n", ts, v)}' /tmp/benchbase-run.log
+        command: rc=0; cd /benchbase/benchbase-postgres && java -jar benchbase.jar -b tpcc,chbenchmark -c /tmp/repo/db/pg/chbenchmark/pg_chbenchmark_config.xml --create=false --load=false --execute=true > /tmp/benchbase-run.log 2>&1 || rc=$?; cat /tmp/benchbase-run.log >&2; [ "$rc" -eq 0 ] || exit "$rc"; awk 'match($0,/measuredRequests=[0-9]+/) {v=substr($0,RSTART+17,RLENGTH-17)} END {if (v=="") exit 1; "date +%s"|getline ts; printf("%s000000 chbenchmark_requests=%s\n", ts, v)}' /tmp/benchbase-run.log
         shell: sh
         log-stdout: true
         read-sci-stdout: true
