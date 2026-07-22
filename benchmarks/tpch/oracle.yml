@@ -1,6 +1,6 @@
 ---
 name: HammerDB Oracle TPC-H benchmark
-author: Didi Hoffmann <didi@green-coding.berlin)
+author: Didi Hoffmann <didi@green-coding.berlin>
 description: Benchmarks Oracle Database Free with HammerDB using TPC-H
 
 compose-file: !include compose.yml
@@ -31,16 +31,15 @@ flow:
     commands:
       - type: console
         note: RUN HAMMERDB BUILD
-        command: ./hammerdbcli auto /tmp/repo/db/oracle/tpch/oracle_tproch_buildschema.tcl | tee /dev/stderr | awk '/query [0-9]+ completed in/{q++} END{if(q>0){"date +%s"|getline ts; printf("%s000000 tpch_queries=%d\n", ts, q)}}'
+        command: ./hammerdbcli auto /tmp/repo/db/oracle/tpch/oracle_tproch_buildschema.tcl
         shell: sh
         log-stdout: true
-        read-sci-stdout: true
   - name: Run Queries
     container: hammerdb_container
     commands:
       - type: console
         note: RUN HAMMERDB QUERIES
-        command: ./hammerdbcli auto /tmp/repo/db/oracle/tpch/oracle_tproch_run.tcl | tee /dev/stderr | awk 'END{"date +%s"|getline ts; printf("%s000000 tpch_queries=22\n", ts)}'
+        command: ./hammerdbcli auto /tmp/repo/db/oracle/tpch/oracle_tproch_run.tcl > /tmp/hammerdb-run.log 2>&1; rc=$?; cat /tmp/hammerdb-run.log >&2; [ "$rc" -eq 0 ] || exit "$rc"; printf '%s000000 tpch_queries=22\n' "$(date +%s)"
         shell: sh
         log-stdout: true
         read-sci-stdout: true
@@ -49,7 +48,6 @@ flow:
     commands:
       - type: console
         note: RUN HAMMERDB DROP
-        command: ./hammerdbcli auto /tmp/repo/db/oracle/tpch/oracle_tproch_deleteschema.tcl | tee /dev/stderr | awk '/query [0-9]+ completed in/{q++} END{if(q>0){"date +%s"|getline ts; printf("%s000000 tpch_queries=%d\n", ts, q)}}'
+        command: ./hammerdbcli auto /tmp/repo/db/oracle/tpch/oracle_tproch_deleteschema.tcl
         shell: sh
         log-stdout: true
-        read-sci-stdout: true

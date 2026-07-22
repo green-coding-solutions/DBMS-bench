@@ -68,7 +68,8 @@ docker login                 # as the account that owns the image (ribalba)
 
 Notes:
 
-- The Db2 server container requires `privileged: true`, and the host must allow it.
+- The Db2 server container requires the `CAP_IPC_OWNER` capability (granted via `--cap-add IPC_OWNER` in
+  `docker-run-args`), and the host must allow it. Full `privileged: true` is not needed.
 - Db2 is slow to start (minutes) and loads via INSERTs, so it builds slower than the bulk-loaded engines.
 
 ## BenchBase setup

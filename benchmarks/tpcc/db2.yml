@@ -1,6 +1,6 @@
 ---
 name: HammerDB Db2 TPC-C benchmark
-author: Didi Hoffmann <didi@green-coding.berlin)
+author: Didi Hoffmann <didi@green-coding.berlin>
 description: Benchmarks IBM Db2 with HammerDB using TPC-C
 
 compose-file: !include compose.yml
@@ -55,16 +55,15 @@ flow:
     commands:
       - type: console
         note: RUN HAMMERDB BUILD
-        command: . /database/config/db2inst1/sqllib/db2profile && cd /home/HammerDB-5.0 && ./hammerdbcli auto /tmp/repo/db/db2/tpcc/db2_tprocc_buildschema.tcl | tee /dev/stderr | awk '/System achieved [0-9]+ NOPM/ { match($0, /System achieved [0-9]+ NOPM/); "date +%s"|getline ts; printf("%s000000 sqlop=%s\n", ts, substr($0, RSTART+16, RLENGTH-21)) }'
+        command: . /database/config/db2inst1/sqllib/db2profile && cd /home/HammerDB-5.0 && ./hammerdbcli auto /tmp/repo/db/db2/tpcc/db2_tprocc_buildschema.tcl
         shell: sh
         log-stdout: true
-        read-sci-stdout: true
   - name: Query Warehouses
     container: hammerdb_container
     commands:
       - type: console
         note: RUN HAMMERDB SELECTS
-        command: . /database/config/db2inst1/sqllib/db2profile && cd /home/HammerDB-5.0 && ./hammerdbcli auto /tmp/repo/db/db2/tpcc/db2_tprocc_run.tcl | tee /dev/stderr | awk '/System achieved [0-9]+ NOPM/ { match($0, /System achieved [0-9]+ NOPM/); "date +%s"|getline ts; printf("%s000000 sqlop=%s\n", ts, substr($0, RSTART+16, RLENGTH-21)) }'
+        command: . /database/config/db2inst1/sqllib/db2profile && cd /home/HammerDB-5.0 && ./hammerdbcli auto /tmp/repo/db/db2/tpcc/db2_tprocc_run.tcl > /tmp/hammerdb-run.log 2>&1; rc=$?; cat /tmp/hammerdb-run.log >&2; [ "$rc" -eq 0 ] || exit "$rc"; awk '/System achieved [0-9]+ NOPM/ { match($0, /System achieved [0-9]+ NOPM/); v=substr($0, RSTART+16, RLENGTH-21) } END { if (v=="") exit 1; "date +%s"|getline ts; printf("%s000000 sqlop=%s\n", ts, v) }' /tmp/hammerdb-run.log
         shell: sh
         log-stdout: true
         read-sci-stdout: true
@@ -73,7 +72,6 @@ flow:
     commands:
       - type: console
         note: RUN HAMMERDB DROP
-        command: . /database/config/db2inst1/sqllib/db2profile && cd /home/HammerDB-5.0 && ./hammerdbcli auto /tmp/repo/db/db2/tpcc/db2_tprocc_deleteschema.tcl | tee /dev/stderr | awk '/System achieved [0-9]+ NOPM/ { match($0, /System achieved [0-9]+ NOPM/); "date +%s"|getline ts; printf("%s000000 sqlop=%s\n", ts, substr($0, RSTART+16, RLENGTH-21)) }'
+        command: . /database/config/db2inst1/sqllib/db2profile && cd /home/HammerDB-5.0 && ./hammerdbcli auto /tmp/repo/db/db2/tpcc/db2_tprocc_deleteschema.tcl
         shell: sh
         log-stdout: true
-        read-sci-stdout: true

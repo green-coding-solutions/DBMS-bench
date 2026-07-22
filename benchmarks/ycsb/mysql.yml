@@ -1,6 +1,6 @@
 ---
 name: BenchBase MySQL YCSB benchmark
-author: Didi Hoffmann <didi@green-coding.berlin)
+author: Didi Hoffmann <didi@green-coding.berlin>
 description: Benchmarks MySQL with BenchBase using the YCSB workload
 
 compose-file: !include compose.yml
@@ -44,7 +44,7 @@ flow:
     commands:
       - type: console
         note: BENCHBASE EXECUTE
-        command: cd /benchbase/benchbase-mysql && java -jar benchbase.jar -b ycsb -c /tmp/repo/db/mysql/ycsb/mysql_ycsb_config.xml --create=false --load=false --execute=true | tee /dev/stderr | awk 'match($0,/measuredRequests=[0-9]+/) {v=substr($0,RSTART+17,RLENGTH-17)} END {if (v!="") {"date +%s"|getline ts; printf("%s000000 ycsb_requests=%s\n", ts, v)}}'
+        command: cd /benchbase/benchbase-mysql && java -jar benchbase.jar -b ycsb -c /tmp/repo/db/mysql/ycsb/mysql_ycsb_config.xml --create=false --load=false --execute=true > /tmp/benchbase-run.log 2>&1; rc=$?; cat /tmp/benchbase-run.log >&2; [ "$rc" -eq 0 ] || exit "$rc"; awk 'match($0,/measuredRequests=[0-9]+/) {v=substr($0,RSTART+17,RLENGTH-17)} END {if (v=="") exit 1; "date +%s"|getline ts; printf("%s000000 ycsb_requests=%s\n", ts, v)}' /tmp/benchbase-run.log
         shell: sh
         log-stdout: true
         read-sci-stdout: true
