@@ -47,6 +47,33 @@ flow:
           ' || true
         shell: bash
         log-stdout: true
+  # HammerDB opens every TPROC-H connection with "SET CURRENT DEGREE '2'", the same degree
+  # Oracle/PostgreSQL/MSSQL request here. The Db2 image ships with INTRA_PARALLEL=NO, which
+  # makes Db2 answer SQL1530W - and db2tcl reports that warning as an error, so the virtual
+  # user died on connect before running a single query. intra_parallel is not configurable
+  # online, hence the instance recycle; this also picks up the log sizing above. Runs before
+  # any measured benchmark step.
+  - name: Enable Db2 intra-partition parallelism
+    container: db2_container
+    commands:
+      - type: console
+        note: ENABLE INTRA_PARALLEL (avoids SQL1530W on "SET CURRENT DEGREE")
+        command: |
+          su -l db2inst1 -c '
+            db2 update dbm cfg using INTRA_PARALLEL YES
+            db2stop force
+            db2start
+            ok=0
+            i=0; while [ $i -lt 40 ]; do
+              if db2 connect to tpch >/dev/null 2>&1; then ok=1; db2 connect reset >/dev/null 2>&1; break; fi
+              i=$((i+1)); sleep 3
+            done
+            if [ $ok -ne 1 ]; then echo "Db2 did not accept connections after the restart" >&2; exit 1; fi
+            db2 get dbm cfg | grep -i "(INTRA_PARALLEL)"
+            db2 get dbm cfg | grep -qi "(INTRA_PARALLEL) = YES" || { echo "INTRA_PARALLEL is still not enabled" >&2; exit 1; }
+          '
+        shell: bash
+        log-stdout: true
   - name: Catalog Db2
     container: hammerdb_container
     commands:

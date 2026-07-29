@@ -63,10 +63,12 @@ TCL_KNOBS = {
         "num_tpch_threads": r"num_tpch_threads\s+(\d+)",
         "total_querysets": r"total_querysets\s+(\d+)",
         # Per-query intra-query parallelism. Each engine names this knob
-        # differently in HammerDB: pg_/oracle's `degree_of_parallel`, and
+        # differently in HammerDB: pg_/oracle/db2's `degree_of_parallel`, and
         # MSSQL's `mssqls_maxdop` (MAXDOP) — the same fairness setting, so we
-        # match either. maria/mysql/db2 have no such HammerDB knob (no parallel
-        # query control there), so they legitimately never set it.
+        # match either. maria/mysql have no such HammerDB knob (no parallel
+        # query control there), so they legitimately never set it. Db2 does have
+        # one, and it must be paired with INTRA_PARALLEL=YES on the server (see
+        # benchmarks/tpch/db2.yml) or Db2 rejects the request with SQL1530W.
         "degree_of_parallel": r"(?:degree_of_parallel|mssqls_maxdop)\s+(\d+)",
     },
 }

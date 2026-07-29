@@ -53,7 +53,12 @@ services:
     mem_limit: 8g
     environment:
       MYSQL_ROOT_PASSWORD: mysql
-      MYSQL_DATABASE: mysql
+      # Must not be `mysql` - that is MySQL's own system schema, which always holds the
+      # grant tables, so HammerDB's TPC-C build refuses it as "exists but is not empty".
+      # The entrypoint creates this database empty and grants MYSQL_USER on it, which is
+      # what lets the non-root mysql user build the schema. TPC-H uses its own `tpch`
+      # database (created by HammerDB as root) and BenchBase creates `benchbase` itself.
+      MYSQL_DATABASE: tpcc
       MYSQL_USER: mysql
       MYSQL_PASSWORD: mysql
     # ports:

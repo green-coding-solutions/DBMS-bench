@@ -18,6 +18,15 @@ diset tpcc allwarehouse true
 diset tpcc ora_timeprofile true
 diset tpcc raiseerror true
 
+# hammerdbcli tears the Virtual Users down rampup+duration+keepalive_margin seconds after
+# vurun - 120+300+60 = 480s with the 60s default. That budget also has to cover the two AWR
+# snapshots the monitor VU takes, and on this container the START snapshot alone measured
+# 60-90s, which pushed the end of the timing loop to (or past) the deadline. The monitor was
+# killed while taking the END snapshot, so it reported FINISHED FAILED and never printed the
+# "System achieved ... NOPM" line the scenario parses - failing both observed Oracle runs.
+# 300s covers both snapshots plus the DBA_HIST_SYSSTAT query; the timer returns as soon as
+# all VUs complete, so a wide margin costs no extra runtime when things go well.
+giset commandline keepalive_margin 300
 
 loadscript
 puts "TEST STARTED"

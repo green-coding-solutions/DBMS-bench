@@ -14,7 +14,10 @@ diset tpcc mysql_count_ware $warehouse
 diset tpcc mysql_num_vu $vu
 diset tpcc mysql_user mysql
 diset tpcc mysql_pass mysql
-diset tpcc mysql_dbase mysql
+# NOT "mysql": that is MySQL's own system schema (grant tables etc.), so HammerDB's
+# "database exists but is not empty" check rejects it and the build fails. `tpcc` is
+# pre-created empty by MYSQL_DATABASE in compose.yml, which also grants the mysql user.
+diset tpcc mysql_dbase tpcc
 diset tpcc mysql_storage_engine innodb
 diset tpcc mysql_raiseerror true
 

@@ -27,6 +27,12 @@ diset tpcc mssqls_checkpoint false
 diset tpcc mssqls_timeprofile true
 diset tpcc mssqls_allwarehouse true
 
+# hammerdbcli tears the Virtual Users down rampup+duration+keepalive_margin seconds after
+# vurun, and the 60s default was too tight for Oracle's monitor VU to finish its end-of-run
+# AWR snapshot - it was killed mid-query and the run reported no result. Widened here too as
+# cheap insurance: the timer returns as soon as all VUs complete, so it costs no runtime.
+giset commandline keepalive_margin 300
+
 loadscript
 puts "TEST STARTED"
 vuset vu 4

@@ -10,7 +10,7 @@ diset connection mysql_port 3306
 
 diset tpcc mysql_user mysql
 diset tpcc mysql_pass mysql
-diset tpcc mysql_dbase mysql
+diset tpcc mysql_dbase tpcc
 diset tpcc mysql_raiseerror true
 
 
