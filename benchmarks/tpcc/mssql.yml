@@ -25,18 +25,21 @@ flow:
   - name: Build Warehouses
     container: hammerdb_container
     commands:
+      # HammerDB exits 0 even when a virtual user dies mid-run, so the log is the only
+      # place that failure shows up. Nothing else needs handling: GMT runs the shell
+      # with errexit/nounset/pipefail and reports stdout/stderr when a command fails.
       - type: console
         note: RUN HAMMERDB BUILD
-        command: rc=0; TMP=/tmp PATH=/opt/mssql-tools18/bin:$PATH ./hammerdbcli auto /tmp/repo/db/mssql/tpcc/mssql_tprocc_buildschema.tcl > /tmp/hammerdb-build.log 2>&1 || rc=$?; cat /tmp/hammerdb-build.log >&2; [ "$rc" -eq 0 ] || exit "$rc"; if grep -qE 'FINISHED FAILED|Error in Virtual User' /tmp/hammerdb-build.log; then echo 'HammerDB reported virtual-user failures - see log above' >&2; exit 1; fi
-        shell: sh
+        command: TMP=/tmp PATH=/opt/mssql-tools18/bin:$PATH ./hammerdbcli auto /tmp/repo/db/mssql/tpcc/mssql_tprocc_buildschema.tcl 2>&1 | tee /tmp/hammerdb-build.log; if grep -qE 'FINISHED FAILED|Error in Virtual User' /tmp/hammerdb-build.log; then echo 'HammerDB reported virtual-user failures - see the log above' >&2; exit 1; fi
+        shell: bash
         log-stdout: true
   - name: Query Warehouses
     container: hammerdb_container
     commands:
       - type: console
         note: RUN HAMMERDB SELECTS
-        command: rc=0; ./hammerdbcli auto /tmp/repo/db/mssql/tpcc/mssql_tprocc_run.tcl > /tmp/hammerdb-run.log 2>&1 || rc=$?; cat /tmp/hammerdb-run.log >&2; [ "$rc" -eq 0 ] || exit "$rc"; if grep -qE 'FINISHED FAILED|Error in Virtual User' /tmp/hammerdb-run.log; then echo 'HammerDB reported virtual-user failures - see log above' >&2; exit 1; fi; awk '/System achieved [0-9]+ NOPM/ { match($0, /System achieved [0-9]+ NOPM/); v=substr($0, RSTART+16, RLENGTH-21) } END { if (v=="") exit 1; "date +%s"|getline ts; printf("%s000000 sqlop=%s\n", ts, v) }' /tmp/hammerdb-run.log
-        shell: sh
+        command: ./hammerdbcli auto /tmp/repo/db/mssql/tpcc/mssql_tprocc_run.tcl 2>&1 | tee /tmp/hammerdb-run.log; if grep -qE 'FINISHED FAILED|Error in Virtual User' /tmp/hammerdb-run.log; then echo 'HammerDB reported virtual-user failures - see the log above' >&2; exit 1; fi; awk '/System achieved [0-9]+ NOPM/ { match($0, /System achieved [0-9]+ NOPM/); v=substr($0, RSTART+16, RLENGTH-21) } END { if (v=="") exit 1; "date +%s"|getline ts; printf("%s000000 sqlop=%s\n", ts, v) }' /tmp/hammerdb-run.log
+        shell: bash
         log-stdout: true
         read-sci-stdout: true
   - name: Drop Warehouses
@@ -45,5 +48,5 @@ flow:
       - type: console
         note: RUN HAMMERDB DROP
         command: ./hammerdbcli auto /tmp/repo/db/mssql/tpcc/mssql_tprocc_deleteschema.tcl
-        shell: sh
+        shell: bash
         log-stdout: true

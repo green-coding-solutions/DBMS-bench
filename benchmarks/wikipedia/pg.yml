@@ -28,8 +28,10 @@ flow:
     commands:
       - type: console
         note: CREATE BENCHBASE DATABASE
-        command: psql "postgresql://postgres:postgres@localhost:5432/postgres" -tc "SELECT 1 FROM pg_database WHERE datname='benchbase'" | grep -q 1 || psql "postgresql://postgres:postgres@localhost:5432/postgres" -c "CREATE DATABASE benchbase"
-        shell: sh
+        # No `psql | grep` here: grep -q closes the pipe on the first match, which under
+        # pipefail surfaces psql's SIGPIPE as a failed pipeline.
+        command: if [ -z "$(psql "postgresql://postgres:postgres@localhost:5432/postgres" -tAc "SELECT 1 FROM pg_database WHERE datname='benchbase'")" ]; then psql "postgresql://postgres:postgres@localhost:5432/postgres" -c "CREATE DATABASE benchbase"; fi
+        shell: bash
         log-stdout: true
   - name: Load Wikipedia schema and data
     container: benchbase_container
@@ -37,14 +39,14 @@ flow:
       - type: console
         note: BENCHBASE CREATE + LOAD
         command: cd /benchbase/benchbase-postgres && java -jar benchbase.jar -b wikipedia -c /tmp/repo/db/pg/wikipedia/pg_wikipedia_config.xml --create=true --load=true --execute=false
-        shell: sh
+        shell: bash
         log-stdout: true
   - name: Run Wikipedia workload
     container: benchbase_container
     commands:
       - type: console
         note: BENCHBASE EXECUTE
-        command: rc=0; cd /benchbase/benchbase-postgres && java -jar benchbase.jar -b wikipedia -c /tmp/repo/db/pg/wikipedia/pg_wikipedia_config.xml --create=false --load=false --execute=true > /tmp/benchbase-run.log 2>&1 || rc=$?; cat /tmp/benchbase-run.log >&2; [ "$rc" -eq 0 ] || exit "$rc"; awk 'match($0,/measuredRequests=[0-9]+/) {v=substr($0,RSTART+17,RLENGTH-17)} END {if (v=="") exit 1; "date +%s"|getline ts; printf("%s000000 wikipedia_requests=%s\n", ts, v)}' /tmp/benchbase-run.log
-        shell: sh
+        command: cd /benchbase/benchbase-postgres && java -jar benchbase.jar -b wikipedia -c /tmp/repo/db/pg/wikipedia/pg_wikipedia_config.xml --create=false --load=false --execute=true 2>&1 | tee /tmp/benchbase-run.log; awk 'match($0,/measuredRequests=[0-9]+/) {v=substr($0,RSTART+17,RLENGTH-17)} END {if (v=="") exit 1; "date +%s"|getline ts; printf("%s000000 wikipedia_requests=%s\n", ts, v)}' /tmp/benchbase-run.log
+        shell: bash
         log-stdout: true
         read-sci-stdout: true

@@ -48,23 +48,32 @@ flow:
       - type: console
         note: CATALOG REMOTE DB2
         command: chmod -R u+rwX /database/config/db2inst1/sqllib 2>/dev/null; rm -f /database/config/db2inst1/sqllib/db2nodes.cfg; echo "0 $(hostname) 0" > /database/config/db2inst1/sqllib/db2nodes.cfg && . /database/config/db2inst1/sqllib/db2profile && { db2 uncatalog database tpcc; db2 uncatalog node db2node; true; } && db2 catalog tcpip node db2node remote db2_container server 50000 && db2 catalog database tpcc at node db2node && db2 terminate && (i=0; while [ $i -lt 30 ]; do db2 connect to tpcc >/dev/null 2>&1 && db2 connect reset >/dev/null 2>&1 && break; i=$((i+1)); sleep 3; done)
-        shell: sh
+        shell: bash
+        # db2profile is not `set -u` clean, hence no nounset here.
+        shell-options: -o errexit -o pipefail
         log-stdout: true
   - name: Build Warehouses
     container: hammerdb_container
     commands:
+      # HammerDB exits 0 even when a virtual user dies mid-run, so the log is the only
+      # place that failure shows up. Nothing else needs handling: GMT runs the shell
+      # with errexit/nounset/pipefail and reports stdout/stderr when a command fails.
       - type: console
         note: RUN HAMMERDB BUILD
-        command: rc=0; . /database/config/db2inst1/sqllib/db2profile && cd /home/HammerDB-5.0 && ./hammerdbcli auto /tmp/repo/db/db2/tpcc/db2_tprocc_buildschema.tcl > /tmp/hammerdb-build.log 2>&1 || rc=$?; cat /tmp/hammerdb-build.log >&2; [ "$rc" -eq 0 ] || exit "$rc"; if grep -qE 'FINISHED FAILED|Error in Virtual User' /tmp/hammerdb-build.log; then echo 'HammerDB reported virtual-user failures - see log above' >&2; exit 1; fi
-        shell: sh
+        command: . /database/config/db2inst1/sqllib/db2profile && cd /home/HammerDB-5.0 && ./hammerdbcli auto /tmp/repo/db/db2/tpcc/db2_tprocc_buildschema.tcl 2>&1 | tee /tmp/hammerdb-build.log; if grep -qE 'FINISHED FAILED|Error in Virtual User' /tmp/hammerdb-build.log; then echo 'HammerDB reported virtual-user failures - see the log above' >&2; exit 1; fi
+        shell: bash
+        # db2profile is not `set -u` clean, hence no nounset here.
+        shell-options: -o errexit -o pipefail
         log-stdout: true
   - name: Query Warehouses
     container: hammerdb_container
     commands:
       - type: console
         note: RUN HAMMERDB SELECTS
-        command: rc=0; . /database/config/db2inst1/sqllib/db2profile && cd /home/HammerDB-5.0 && ./hammerdbcli auto /tmp/repo/db/db2/tpcc/db2_tprocc_run.tcl > /tmp/hammerdb-run.log 2>&1 || rc=$?; cat /tmp/hammerdb-run.log >&2; [ "$rc" -eq 0 ] || exit "$rc"; if grep -qE 'FINISHED FAILED|Error in Virtual User' /tmp/hammerdb-run.log; then echo 'HammerDB reported virtual-user failures - see log above' >&2; exit 1; fi; awk '/System achieved [0-9]+ NOPM/ { match($0, /System achieved [0-9]+ NOPM/); v=substr($0, RSTART+16, RLENGTH-21) } END { if (v=="") exit 1; "date +%s"|getline ts; printf("%s000000 sqlop=%s\n", ts, v) }' /tmp/hammerdb-run.log
-        shell: sh
+        command: . /database/config/db2inst1/sqllib/db2profile && cd /home/HammerDB-5.0 && ./hammerdbcli auto /tmp/repo/db/db2/tpcc/db2_tprocc_run.tcl 2>&1 | tee /tmp/hammerdb-run.log; if grep -qE 'FINISHED FAILED|Error in Virtual User' /tmp/hammerdb-run.log; then echo 'HammerDB reported virtual-user failures - see the log above' >&2; exit 1; fi; awk '/System achieved [0-9]+ NOPM/ { match($0, /System achieved [0-9]+ NOPM/); v=substr($0, RSTART+16, RLENGTH-21) } END { if (v=="") exit 1; "date +%s"|getline ts; printf("%s000000 sqlop=%s\n", ts, v) }' /tmp/hammerdb-run.log
+        shell: bash
+        # db2profile is not `set -u` clean, hence no nounset here.
+        shell-options: -o errexit -o pipefail
         log-stdout: true
         read-sci-stdout: true
   - name: Drop Warehouses
@@ -73,5 +82,7 @@ flow:
       - type: console
         note: RUN HAMMERDB DROP
         command: . /database/config/db2inst1/sqllib/db2profile && cd /home/HammerDB-5.0 && ./hammerdbcli auto /tmp/repo/db/db2/tpcc/db2_tprocc_deleteschema.tcl
-        shell: sh
+        shell: bash
+        # db2profile is not `set -u` clean, hence no nounset here.
+        shell-options: -o errexit -o pipefail
         log-stdout: true
