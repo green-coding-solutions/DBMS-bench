@@ -70,7 +70,7 @@ services:
       retries: 10
       start_period: 30s
   oracle:
-    image: container-registry.oracle.com/database/free:23.26.2.0
+    image: container-registry.oracle.com/database/free:23.26.3.0
     container_name: oracle_container
     cpus: 4
     mem_limit: 8g
