@@ -6,7 +6,23 @@
 version: 2
 updates:
   - package-ecosystem: "docker-compose" # See documentation for possible values
-    directory: "/" # Location of package manifests
+    # GMT refuses to `!include` a compose file from a parent directory, so every
+    # benchmark folder carries a byte-for-byte copy of the root compose.yml and
+    # check_repo.py enforces that they stay identical. Dependabot therefore has to
+    # see all six manifests, otherwise it bumps an image in the root copy only and
+    # silently breaks that invariant.
+    directories: # Locations of the package manifests
+      - "/"
+      - "/benchmarks/tpcc"
+      - "/benchmarks/tpch"
+      - "/benchmarks/wikipedia"
+      - "/benchmarks/ycsb"
+      - "/benchmarks/chbenchmark"
+    groups:
+      # One PR per image that bumps all six copies together, instead of six PRs
+      # that each leave the copies out of sync until the last one merges.
+      compose-copies:
+        group-by: "dependency-name"
     schedule:
       interval: "weekly"
     ignore:
