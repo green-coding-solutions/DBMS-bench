@@ -1,0 +1,120 @@
+---
+name: HammerDB Db2 TPC-H benchmark
+author: Didi Hoffmann <didi@green-coding.berlin>
+description: Benchmarks IBM Db2 with HammerDB using TPC-H
+
+compose-file: !include compose.yml
+
+custom_metrics:
+  tpch_queries: # functional unit (work done): number of TPC-H queries completed
+    unit: TPC-H query
+    sci: true
+
+services:
+  postgres: # empty key will remove the unused service
+  mariadb: # empty key will remove the unused service
+  mysql: # empty key will remove the unused service
+  oracle: # empty key will remove the unused service
+  mssql: # empty key will remove the unused service
+  db2: # this benchmark needs the tpch database instead of the default tpcc
+    environment:
+      LICENSE: accept
+      DB2INST1_PASSWORD: ibmdb2
+      DBNAME: tpch
+  hammerdb: # Db2-enabled image (build/push with ./db/db2/build-image.sh); wait for Db2
+    image: ribalba/hammerdb-db2:latest
+    depends_on:
+      db2:
+        condition: service_healthy
+
+flow:
+  # Db2 is excluded from the paper (no BenchBase profile; Community-edition capped) and
+  # kept only for benchmarking, so enlarging its undersized default transaction log here
+  # is fine. Without this the bulk load fails with SQL0964C (log full).
+  - name: Size Db2 transaction log
+    container: db2_container
+    commands:
+      - type: console
+        note: ENLARGE TRANSACTION LOG before the bulk load (avoids SQL0964C "log full")
+        command: |
+          su -l db2inst1 -c '
+            i=0; while [ $i -lt 40 ]; do db2 connect to tpch >/dev/null 2>&1 && break; i=$((i+1)); sleep 3; done
+            db2 connect reset
+            db2 update db cfg for tpch using LOGFILSIZ 8192 LOGPRIMARY 16 LOGSECOND 48
+            db2 force application all
+            db2 deactivate db tpch
+            db2 get db cfg for tpch | grep -iE "Log file size|primary log|secondary log"
+          ' || true
+        shell: bash
+        log-stdout: true
+  # HammerDB opens every TPROC-H connection with "SET CURRENT DEGREE '2'", the same degree
+  # Oracle/PostgreSQL/MSSQL request here. The Db2 image ships with INTRA_PARALLEL=NO, which
+  # makes Db2 answer SQL1530W - and db2tcl reports that warning as an error, so the virtual
+  # user died on connect before running a single query. intra_parallel is not configurable
+  # online, hence the instance recycle; this also picks up the log sizing above. Runs before
+  # any measured benchmark step.
+  - name: Enable Db2 intra-partition parallelism
+    container: db2_container
+    commands:
+      - type: console
+        note: ENABLE INTRA_PARALLEL (avoids SQL1530W on "SET CURRENT DEGREE")
+        command: |
+          su -l db2inst1 -c '
+            db2 update dbm cfg using INTRA_PARALLEL YES
+            db2stop force
+            db2start
+            ok=0
+            i=0; while [ $i -lt 40 ]; do
+              if db2 connect to tpch >/dev/null 2>&1; then ok=1; db2 connect reset >/dev/null 2>&1; break; fi
+              i=$((i+1)); sleep 3
+            done
+            if [ $ok -ne 1 ]; then echo "Db2 did not accept connections after the restart" >&2; exit 1; fi
+            db2 get dbm cfg | grep -i "(INTRA_PARALLEL)"
+            db2 get dbm cfg | grep -qi "(INTRA_PARALLEL) = YES" || { echo "INTRA_PARALLEL is still not enabled" >&2; exit 1; }
+          '
+        shell: bash
+        log-stdout: true
+  - name: Catalog Db2
+    container: hammerdb_container
+    commands:
+      - type: console
+        note: CATALOG REMOTE DB2
+        command: chmod -R u+rwX /database/config/db2inst1/sqllib 2>/dev/null; rm -f /database/config/db2inst1/sqllib/db2nodes.cfg; echo "0 $(hostname) 0" > /database/config/db2inst1/sqllib/db2nodes.cfg && . /database/config/db2inst1/sqllib/db2profile && { db2 uncatalog database tpch; db2 uncatalog node db2node; true; } && db2 catalog tcpip node db2node remote db2_container server 50000 && db2 catalog database tpch at node db2node && db2 terminate && (i=0; while [ $i -lt 30 ]; do db2 connect to tpch >/dev/null 2>&1 && db2 connect reset >/dev/null 2>&1 && break; i=$((i+1)); sleep 3; done)
+        shell: bash
+        # db2profile is not `set -u` clean, hence no nounset here.
+        shell-options: -o errexit -o pipefail
+        log-stdout: true
+  - name: Build Schema
+    container: hammerdb_container
+    commands:
+      # HammerDB exits 0 even when a virtual user dies mid-run, so the log is the only
+      # place that failure shows up. Nothing else needs handling: GMT runs the shell
+      # with errexit/nounset/pipefail and reports stdout/stderr when a command fails.
+      - type: console
+        note: RUN HAMMERDB BUILD
+        command: . /database/config/db2inst1/sqllib/db2profile && cd /home/HammerDB-5.0 && ./hammerdbcli auto /tmp/repo/db/db2/tpch/db2_tproch_buildschema.tcl 2>&1 | tee /tmp/hammerdb-build.log; if grep -qE 'FINISHED FAILED|Error in Virtual User' /tmp/hammerdb-build.log; then echo 'HammerDB reported virtual-user failures - see the log above' >&2; exit 1; fi
+        shell: bash
+        # db2profile is not `set -u` clean, hence no nounset here.
+        shell-options: -o errexit -o pipefail
+        log-stdout: true
+  - name: Run Queries
+    container: hammerdb_container
+    commands:
+      - type: console
+        note: RUN HAMMERDB QUERIES
+        command: . /database/config/db2inst1/sqllib/db2profile && cd /home/HammerDB-5.0 && ./hammerdbcli auto /tmp/repo/db/db2/tpch/db2_tproch_run.tcl 2>&1 | tee /tmp/hammerdb-run.log; if grep -qE 'FINISHED FAILED|Error in Virtual User' /tmp/hammerdb-run.log; then echo 'HammerDB reported virtual-user failures - see the log above' >&2; exit 1; fi; printf '%s000000 tpch_queries=22\n' "$(date +%s)"
+        shell: bash
+        # db2profile is not `set -u` clean, hence no nounset here.
+        shell-options: -o errexit -o pipefail
+        log-stdout: true
+        read-sci-stdout: true
+  - name: Drop Schema
+    container: hammerdb_container
+    commands:
+      - type: console
+        note: RUN HAMMERDB DROP
+        command: . /database/config/db2inst1/sqllib/db2profile && cd /home/HammerDB-5.0 && ./hammerdbcli auto /tmp/repo/db/db2/tpch/db2_tproch_deleteschema.tcl
+        shell: bash
+        # db2profile is not `set -u` clean, hence no nounset here.
+        shell-options: -o errexit -o pipefail
+        log-stdout: true

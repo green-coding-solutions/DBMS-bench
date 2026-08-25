@@ -1,0 +1,50 @@
+---
+name: BenchBase Microsoft SQL Server Wikipedia benchmark
+author: Didi Hoffmann <didi@green-coding.berlin>
+description: Benchmarks Microsoft SQL Server with BenchBase using the Wikipedia workload
+
+compose-file: !include compose.yml
+
+custom_metrics:
+  wikipedia_requests: # functional unit (work done): BenchBase requests completed in the measured run
+    unit: Wikipedia request
+    sci: true
+
+services:
+  postgres: # unused — empty key removes the service
+  mariadb: # unused — empty key removes the service
+  mysql: # unused — empty key removes the service
+  oracle: # unused — empty key removes the service
+  db2: # unused — empty key removes the service
+  hammerdb: # unused — empty key removes the service
+  benchbase: # load driver; wait for the database to be healthy first
+    depends_on:
+      mssql:
+        condition: service_healthy
+
+flow:
+  - name: Create benchbase database
+    container: mssql_container
+    commands:
+      - type: console
+        note: CREATE BENCHBASE DATABASE
+        command: /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P Hammerdb_2024 -C -Q "IF DB_ID('benchbase') IS NULL CREATE DATABASE benchbase"
+        shell: bash
+        log-stdout: true
+  - name: Load Wikipedia schema and data
+    container: benchbase_container
+    commands:
+      - type: console
+        note: BENCHBASE CREATE + LOAD
+        command: cd /benchbase/benchbase-sqlserver && java -jar benchbase.jar -b wikipedia -c /tmp/repo/db/mssql/wikipedia/mssql_wikipedia_config.xml --create=true --load=true --execute=false
+        shell: bash
+        log-stdout: true
+  - name: Run Wikipedia workload
+    container: benchbase_container
+    commands:
+      - type: console
+        note: BENCHBASE EXECUTE
+        command: cd /benchbase/benchbase-sqlserver && java -jar benchbase.jar -b wikipedia -c /tmp/repo/db/mssql/wikipedia/mssql_wikipedia_config.xml --create=false --load=false --execute=true 2>&1 | tee /tmp/benchbase-run.log; awk 'match($0,/measuredRequests=[0-9]+/) {v=substr($0,RSTART+17,RLENGTH-17)} END {if (v=="") exit 1; "date +%s"|getline ts; printf("%s000000 wikipedia_requests=%s\n", ts, v)}' /tmp/benchbase-run.log
+        shell: bash
+        log-stdout: true
+        read-sci-stdout: true

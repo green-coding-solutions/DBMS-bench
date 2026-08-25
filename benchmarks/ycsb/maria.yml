@@ -1,0 +1,50 @@
+---
+name: BenchBase MariaDB YCSB benchmark
+author: Didi Hoffmann <didi@green-coding.berlin>
+description: Benchmarks MariaDB with BenchBase using the YCSB workload
+
+compose-file: !include compose.yml
+
+custom_metrics:
+  ycsb_requests: # functional unit (work done): BenchBase requests completed in the measured run
+    unit: YCSB request
+    sci: true
+
+services:
+  postgres: # unused — empty key removes the service
+  mysql: # unused — empty key removes the service
+  oracle: # unused — empty key removes the service
+  mssql: # unused — empty key removes the service
+  db2: # unused — empty key removes the service
+  hammerdb: # unused — empty key removes the service
+  benchbase: # load driver; wait for the database to be healthy first
+    depends_on:
+      mariadb:
+        condition: service_healthy
+
+flow:
+  - name: Create benchbase database
+    container: mariadb_container
+    commands:
+      - type: console
+        note: CREATE BENCHBASE DATABASE
+        command: mariadb -uroot -pmaria -e "CREATE DATABASE IF NOT EXISTS benchbase; GRANT ALL ON benchbase.* TO 'maria'@'%'; FLUSH PRIVILEGES;"
+        shell: bash
+        log-stdout: true
+  - name: Load YCSB schema and data
+    container: benchbase_container
+    commands:
+      - type: console
+        note: BENCHBASE CREATE + LOAD
+        command: cd /benchbase/benchbase-mariadb && java -jar benchbase.jar -b ycsb -c /tmp/repo/db/maria/ycsb/maria_ycsb_config.xml --create=true --load=true --execute=false
+        shell: bash
+        log-stdout: true
+  - name: Run YCSB workload
+    container: benchbase_container
+    commands:
+      - type: console
+        note: BENCHBASE EXECUTE
+        command: cd /benchbase/benchbase-mariadb && java -jar benchbase.jar -b ycsb -c /tmp/repo/db/maria/ycsb/maria_ycsb_config.xml --create=false --load=false --execute=true 2>&1 | tee /tmp/benchbase-run.log; awk 'match($0,/measuredRequests=[0-9]+/) {v=substr($0,RSTART+17,RLENGTH-17)} END {if (v=="") exit 1; "date +%s"|getline ts; printf("%s000000 ycsb_requests=%s\n", ts, v)}' /tmp/benchbase-run.log
+        shell: bash
+        log-stdout: true
+        read-sci-stdout: true

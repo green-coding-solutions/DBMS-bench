@@ -6,6 +6,28 @@
 version: 2
 updates:
   - package-ecosystem: "docker-compose" # See documentation for possible values
-    directory: "/" # Location of package manifests
+    # GMT refuses to `!include` a compose file from a parent directory, so every
+    # benchmark folder carries a byte-for-byte copy of the root compose.yml and
+    # check_repo.py enforces that they stay identical. Dependabot therefore has to
+    # see all six manifests, otherwise it bumps an image in the root copy only and
+    # silently breaks that invariant.
+    directories: # Locations of the package manifests
+      - "/"
+      - "/benchmarks/tpcc"
+      - "/benchmarks/tpch"
+      - "/benchmarks/wikipedia"
+      - "/benchmarks/ycsb"
+      - "/benchmarks/chbenchmark"
+    groups:
+      # One PR per image that bumps all six copies together, instead of six PRs
+      # that each leave the copies out of sync until the last one merges.
+      compose-copies:
+        group-by: "dependency-name"
     schedule:
       interval: "weekly"
+    ignore:
+      # MySQL must stay on the 8.4 LTS line: 9.x removed mysql_native_password and
+      # HammerDB 5.0 cannot authenticate to caching_sha2_password over plaintext TCP.
+      # See the comment on the mysql service in compose.yml.
+      - dependency-name: "mysql"
+        update-types: ["version-update:semver-major"]
