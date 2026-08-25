@@ -46,7 +46,7 @@ services:
     # virtual user fails to authenticate over plaintext TCP. The alternatives (TLS, or
     # a Unix socket) would make MySQL the only engine not measured over plaintext TCP
     # and so would bias the cross-engine energy comparison.
-    image: mysql:8.4.10-oraclelinux9
+    image: mysql:8.4.11-oraclelinux9
     command: ["--mysql-native-password=ON", "--authentication-policy=mysql_native_password"]
     container_name: mysql_container
     cpus: 4
