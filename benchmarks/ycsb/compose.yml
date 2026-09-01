@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:18.4-trixie
+    image: postgres:18.6-trixie
     container_name: postgres_container
     # Equal CPU/memory budget for every engine so the comparison is fair. GMT
     # honours the native compose `cpus`/`mem_limit` keys. Tune these to the
