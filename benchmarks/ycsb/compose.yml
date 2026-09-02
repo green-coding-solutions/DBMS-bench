@@ -22,7 +22,7 @@ services:
       retries: 10
       start_period: 30s
   mariadb:
-    image: mariadb:12.3.2-noble
+    image: mariadb:12.3.3-noble
     container_name: mariadb_container
     cpus: 4
     mem_limit: 8g
