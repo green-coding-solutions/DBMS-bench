@@ -12,7 +12,7 @@ diset tpcc mysql_user mysql
 diset tpcc mysql_pass mysql
 diset tpcc mysql_dbase tpcc
 diset tpcc mysql_driver timed
-diset tpcc mysql_rampup 2
+diset tpcc mysql_rampup 0
 diset tpcc mysql_duration 5
 diset tpcc mysql_allwarehouse true
 diset tpcc mysql_timeprofile true

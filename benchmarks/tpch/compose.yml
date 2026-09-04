@@ -1,6 +1,11 @@
+# EDBT 2027 paper branch: every measured image is pinned to the manifest digest that
+# the first T0 batch ran on 2026-09-04 (GMT records the same hash per run), so that all
+# tiers and hosts measure identical software. Db2 and CockroachDB stay in this file
+# only so the `db2:` / `cockroach:` removal keys in the scenarios keep working; they
+# are not part of the paper.
 services:
   postgres:
-    image: postgres:latest
+    image: postgres@sha256:4ef4dbc939d61acea57712655ddb4b4ab27419c913f94cca0cd57cb3ea3c2280  # postgres:latest on 2026-09-04: PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2)
     container_name: postgres_container
     # Equal CPU/memory budget for every engine so the comparison is fair. GMT
     # honours the native compose `cpus`/`mem_limit` keys. Tune these to the
@@ -22,7 +27,7 @@ services:
       retries: 10
       start_period: 30s
   mariadb:
-    image: mariadb:latest
+    image: mariadb@sha256:dd9b303aed4f4890ed09f766d8ca9ddfd176c0c6f6267feff53b3192ec65a979  # mariadb:latest on 2026-09-04: MariaDB 12.3.3
     container_name: mariadb_container
     cpus: 4
     mem_limit: 8g
@@ -57,7 +62,7 @@ services:
     # scramble, no secure channel needed. So we make ONE TLS connection per account at
     # setup time to prime the cache; the whole measured workload then runs over plaintext
     # TCP exactly like every other engine. TLS never touches the benchmark itself.
-    image: mysql:latest
+    image: mysql@sha256:66aec17cd21a956029b83f083b813073859e8355dc1a00e55df6ba02f0e32345  # mysql:latest on 2026-09-04: MySQL Community Server 26.7.0
     container_name: mysql_container
     cpus: 4
     mem_limit: 8g
@@ -93,7 +98,7 @@ services:
           MYSQL_PWD=mysql mysql -h mysql_container --protocol=TCP -uroot --ssl-mode=REQUIRED -e "SELECT 1" >/dev/null
           MYSQL_PWD=mysql mysql -h mysql_container --protocol=TCP -umysql --ssl-mode=REQUIRED -e "SELECT 1" >/dev/null
   oracle:
-    image: container-registry.oracle.com/database/free:latest
+    image: container-registry.oracle.com/database/free@sha256:f988b0c04c4c386cd306a2a914c0d7a9702d83acc31b064a28ad8eb6278a8fba  # container-registry.oracle.com/database/free:latest on 2026-09-04: Oracle AI Database 26ai Free 23.26.3.0.0
     container_name: oracle_container
     cpus: 4
     mem_limit: 8g
@@ -108,7 +113,7 @@ services:
       retries: 40
       start_period: 120s
   mssql:
-    image: mcr.microsoft.com/mssql/server:latest
+    image: mcr.microsoft.com/mssql/server@sha256:4bab24f36c1ecd48e85f7d37df26e6bf301641d84c3fe652f9a0dcc947d512e1  # mcr.microsoft.com/mssql/server:latest on 2026-09-04: SQL Server 2025 RTM-CU8 17.0.4075.5
     container_name: mssql_container
     cpus: 4
     mem_limit: 8g
@@ -211,9 +216,9 @@ services:
 # Benchmark drivers
 
   hammerdb:
-    image: tpcorg/hammerdb:latest
+    image: tpcorg/hammerdb@sha256:66cd92a3af15d62b2e59cf51017c7b1ab9119046d8c5264ef2585348a1b1408a  # tpcorg/hammerdb:latest on 2026-09-04: HammerDB load driver
     container_name: hammerdb_container
 
   benchbase:
-    image: ribalba/benchbase:latest
+    image: ribalba/benchbase@sha256:f7a0f21e8bfc16d2759b8160d23535e684a44a090846bb0b5d2a02948b54829b  # ribalba/benchbase:latest on 2026-09-04: BenchBase load driver (built 3 September 2026)
     container_name: benchbase_container

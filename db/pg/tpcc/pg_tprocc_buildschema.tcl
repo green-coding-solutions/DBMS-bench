@@ -10,7 +10,9 @@ diset connection pg_port 5432
 diset connection pg_sslmode disable
 
 set vu 4
-set warehouse [ expr {$vu * 20} ]
+# EDBT 2027 paper: 10 warehouses per virtual user (40 in total, about 4 GB). Halves the
+# unmeasured build time and lets a tuned buffer pool hold the data set at T1 and T2.
+set warehouse [ expr {$vu * 10} ]
 diset tpcc pg_count_ware $warehouse
 diset tpcc pg_num_vu $vu
 diset tpcc pg_superuser postgres

@@ -264,3 +264,36 @@ Notes:
 - https://github.com/cmu-db/benchbase (BenchBase)
 - OLTP-Bench paper (BenchBase lineage): https://www.vldb.org/pvldb/vol7/p277-difallah.pdf
 - CH-benCHmark paper (Cole et al., DBTest 2011): https://doi.org/10.1145/1988842.1988850
+
+## EDBT 2027 paper branches
+
+The paper measures configuration tiers T0 (as shipped) to T3 on pinned images. Branch `t0`
+is the base of every tier and host branch and differs from `main` in these points:
+
+- Every measured image is pinned to the manifest digest of 2026-09-04:
+
+| Tag on main | Digest on `t0` | Version |
+|---|---|---|
+| `postgres:latest` | `sha256:4ef4dbc939d61acea57712655ddb4b4ab27419c913f94cca0cd57cb3ea3c2280` | PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) |
+| `mariadb:latest` | `sha256:dd9b303aed4f4890ed09f766d8ca9ddfd176c0c6f6267feff53b3192ec65a979` | MariaDB 12.3.3 |
+| `mysql:latest` | `sha256:66aec17cd21a956029b83f083b813073859e8355dc1a00e55df6ba02f0e32345` | MySQL Community Server 26.7.0 |
+| `container-registry.oracle.com/database/free:latest` | `sha256:f988b0c04c4c386cd306a2a914c0d7a9702d83acc31b064a28ad8eb6278a8fba` | Oracle AI Database 26ai Free 23.26.3.0.0 |
+| `mcr.microsoft.com/mssql/server:latest` | `sha256:4bab24f36c1ecd48e85f7d37df26e6bf301641d84c3fe652f9a0dcc947d512e1` | SQL Server 2025 RTM-CU8 17.0.4075.5 |
+| `tpcorg/hammerdb:latest` | `sha256:66cd92a3af15d62b2e59cf51017c7b1ab9119046d8c5264ef2585348a1b1408a` | HammerDB load driver |
+| `ribalba/benchbase:latest` | `sha256:f7a0f21e8bfc16d2759b8160d23535e684a44a090846bb0b5d2a02948b54829b` | BenchBase load driver (built 3 September 2026) |
+
+- Db2 and CockroachDB scenarios are removed (out of scope for the paper).
+- Warm-up is a separate flow phase (`Warm up`), so the measured phase (`Run TPC-C`,
+  `Run TPC-H`, `Run YCSB`, `Run Wikipedia`, `Run CH-benCHmark`) holds only the timed window:
+  HammerDB TPC-C runs 2 min warm-up then 5 min measured with `rampup 0`; BenchBase runs 120 s
+  warm-up then 300 s measured. TPC-H stays one power run of 22 queries.
+- The HammerDB time profile (`/tmp/hdbxtprofile.log`) and the BenchBase `*.summary.json` are
+  printed into the run log, so p95 latency is recoverable from GMT.
+- HammerDB scenarios remove the idle BenchBase container.
+- `run_on_cluster.py` names runs `DBMS-bench <branch> <bench>/<db>` on paper branches.
+- TPC-C builds 40 warehouses (10 per virtual user) instead of 80: the unmeasured build halves and a
+  tuned buffer pool can hold the roughly 4 GB data set at T1 and T2.
+- The SQL Server BenchBase load steps inject `useBulkCopyForBatchInsert=true` into the JDBC URL, so the
+  loader uses the bulk-copy API (YCSB load 365 s to 128 s in a local A/B test). The warm-up and measured
+  steps keep the plain URL on purpose: the same setting could slow single-statement transactions, and a
+  local check could not rule that out because run-to-run throughput varied by a factor of 8.7 from warm-up.

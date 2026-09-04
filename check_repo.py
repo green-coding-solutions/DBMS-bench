@@ -62,6 +62,11 @@ TCL_KNOBS = {
         # as well as the bare Oracle form (`diset tpcc rampup 2`).
         "rampup": r"[\s_]rampup\s+(\d+)",
         "duration": r"[\s_]duration\s+(\d+)",
+        # Warehouses per virtual user. The scripts derive the absolute count as
+        # `set warehouse [ expr {$vu * N} ]` and pass `$warehouse` to the engine's
+        # own `*_count_ware`, so N is the portable form of the data-set size and
+        # must be the same for every engine or the comparison is not fair.
+        "warehouses_per_vu": r"set\s+warehouse\s+\[\s*expr\s*\{\$vu\s*\*\s*(\d+)\}\s*\]",
     },
     "tpch": {
         "scale_fact": r"scale_fact\s+(\d+)",
@@ -218,22 +223,27 @@ def extract_tcl_knobs(benchmark: str, db: str) -> dict[str, str] | None:
     if not bench_dir.is_dir():
         return None
 
-    text = ""
+    # Warm-up scripts (`*_warmup.tcl`, paper branches) are a separate role: they are
+    # deliberately shorter than the measured run, so their knobs are compared across
+    # engines under a `warmup.` prefix instead of against the measured run.
+    texts: dict[str, str] = {"": "", "warmup.": ""}
     for tcl in sorted(bench_dir.glob("*.tcl")):
-        text += "\n" + tcl.read_text()
-    if not text.strip():
+        role = "warmup." if tcl.name.endswith("_warmup.tcl") else ""
+        texts[role] += "\n" + tcl.read_text()
+    if not texts[""].strip():
         return None
 
     found: dict[str, str] = {}
-    for knob, pattern in TCL_KNOBS[benchmark].items():
-        matches = re.findall(pattern, text)
-        if matches:
-            # All occurrences of a knob within one engine must agree, otherwise
-            # the engine's own scripts are inconsistent.
-            if len(set(matches)) > 1:
-                found[knob] = f"<inconsistent:{','.join(matches)}>"
-            else:
-                found[knob] = matches[0]
+    for role, text in texts.items():
+        for knob, pattern in TCL_KNOBS[benchmark].items():
+            matches = re.findall(pattern, text)
+            if matches:
+                # All occurrences of a knob within one engine and role must agree,
+                # otherwise the engine's own scripts are inconsistent.
+                if len(set(matches)) > 1:
+                    found[role + knob] = f"<inconsistent:{','.join(matches)}>"
+                else:
+                    found[role + knob] = matches[0]
     return found
 
 

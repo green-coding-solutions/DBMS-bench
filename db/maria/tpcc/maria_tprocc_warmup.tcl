@@ -1,4 +1,7 @@
 #!/bin/tclsh
+# Warm-up run for the EDBT 2027 paper: identical to the timed run but 2 minutes long,
+# no ramp-up inside HammerDB and no time profile. Its result is discarded; it only
+# brings the engine into steady state before the measured phase.
 # maintainer: Pooja Jain
 
 puts "SETTING CONFIGURATION"
@@ -13,9 +16,9 @@ diset tpcc maria_pass maria
 diset tpcc maria_dbase maria
 diset tpcc maria_driver timed
 diset tpcc maria_rampup 0
-diset tpcc maria_duration 5
+diset tpcc maria_duration 2
 diset tpcc maria_allwarehouse true
-diset tpcc maria_timeprofile true
+diset tpcc maria_timeprofile false
 diset tpcc maria_raiseerror true
 
 # hammerdbcli tears the Virtual Users down rampup+duration+keepalive_margin seconds after
@@ -34,6 +37,6 @@ set jobid [ vurun ]
 vudestroy
 tcstop
 puts "TEST COMPLETE"
-set of [ open /tmp/maria_tprocc w ]
+set of [ open /tmp/maria_tprocc_warmup w ]
 puts $of $jobid
 close $of

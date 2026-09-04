@@ -160,9 +160,12 @@ def discover_scenarios(repo: Path) -> list[Path]:
 
 def build_name(prefix: str, rel_path: Path, branch: str) -> str:
     """A useful, unambiguous run name, e.g. 'DBMS-bench tpcc/pg'."""
-    benchmark = rel_path.parent.name  # tpcc / tpch (drop the benchmarks/ prefix)
-    db = rel_path.stem  # pg, maria, ...
-    return f"{prefix} {benchmark}/{db}"
+    bench, db = rel_path.parent.name, rel_path.stem
+    # Paper branches (t0, t1, ...) carry the branch in the name so tiers and hosts
+    # can be told apart in the dashboard; `main` keeps its historical watchlist names.
+    if branch != "main":
+        return f"{prefix} {branch} {bench}/{db}"
+    return f"{prefix} {bench}/{db}"
 
 
 def submission_error_details(

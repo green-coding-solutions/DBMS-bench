@@ -1,4 +1,7 @@
 #!/bin/tclsh
+# Warm-up run for the EDBT 2027 paper: identical to the timed run but 2 minutes long,
+# no ramp-up inside HammerDB and no time profile. Its result is discarded; it only
+# brings the engine into steady state before the measured phase.
 # maintainer: Pooja Jain
 
 puts "SETTING CONFIGURATION"
@@ -13,9 +16,9 @@ diset tpcc tpcc_user tpcc
 diset tpcc tpcc_pass tpcc
 diset tpcc ora_driver timed
 diset tpcc rampup 0
-diset tpcc duration 5
+diset tpcc duration 2
 diset tpcc allwarehouse true
-diset tpcc ora_timeprofile true
+diset tpcc ora_timeprofile false
 diset tpcc raiseerror true
 
 # hammerdbcli tears the Virtual Users down rampup+duration+keepalive_margin seconds after
@@ -38,6 +41,6 @@ set jobid [ vurun ]
 vudestroy
 tcstop
 puts "TEST COMPLETE"
-set of [ open /tmp/oracle_tprocc w ]
+set of [ open /tmp/oracle_tprocc_warmup w ]
 puts $of $jobid
 close $of

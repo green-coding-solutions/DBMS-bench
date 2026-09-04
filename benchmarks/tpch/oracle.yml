@@ -17,6 +17,7 @@ services:
   mysql: # empty key will remove the unused service
   mssql: # empty key will remove the unused service
   db2: # empty key will remove the unused service
+  benchbase: # unused BenchBase driver removed so no idle container is measured
   hammerdb: # wait for Oracle to finish starting up before benchmarking
     depends_on:
       oracle:
@@ -38,7 +39,7 @@ flow:
         command: ./hammerdbcli auto /tmp/repo/db/oracle/tpch/oracle_tproch_buildschema.tcl 2>&1 | tee /tmp/hammerdb-build.log; if grep -qE 'FINISHED FAILED|Error in Virtual User' /tmp/hammerdb-build.log; then echo 'HammerDB reported virtual-user failures - see the log above' >&2; exit 1; fi
         shell: bash
         log-stdout: true
-  - name: Run Queries
+  - name: Run TPC-H
     container: hammerdb_container
     commands:
       - type: console

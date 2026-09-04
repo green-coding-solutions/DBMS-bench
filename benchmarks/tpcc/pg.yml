@@ -17,6 +17,7 @@ services:
   oracle: # empty key will remove the unused service
   mssql: # empty key will remove the unused service
   db2: # empty key will remove the unused service
+  benchbase: # unused BenchBase driver removed so no idle container is measured
   hammerdb: # wait for Postgres to finish starting up before benchmarking
     depends_on:
       postgres:
@@ -34,12 +35,23 @@ flow:
         command: ./hammerdbcli auto /tmp/repo/db/pg/tpcc/pg_tprocc_buildschema.tcl 2>&1 | tee /tmp/hammerdb-build.log; if grep -qE 'FINISHED FAILED|Error in Virtual User' /tmp/hammerdb-build.log; then echo 'HammerDB reported virtual-user failures - see the log above' >&2; exit 1; fi
         shell: bash
         log-stdout: true
-  - name: Query Warehouses
+  - name: Warm up
+    container: hammerdb_container
+    commands:
+      # The ramp-up is its own phase (2 min, no HammerDB-internal ramp-up) so that the
+      # measured phase below contains only the timed 5 min window. GMT phase boundaries
+      # are the only reliable timing source, so the split has to happen in the flow.
+      - type: console
+        note: RUN HAMMERDB WARM-UP
+        command: ./hammerdbcli auto /tmp/repo/db/pg/tpcc/pg_tprocc_warmup.tcl 2>&1 | tee /tmp/hammerdb-warmup.log; if grep -qE 'FINISHED FAILED|Error in Virtual User' /tmp/hammerdb-warmup.log; then echo 'HammerDB reported virtual-user failures - see the log above' >&2; exit 1; fi
+        shell: bash
+        log-stdout: true
+  - name: Run TPC-C
     container: hammerdb_container
     commands:
       - type: console
-        note: RUN HAMMERDB SELECTS
-        command: ./hammerdbcli auto /tmp/repo/db/pg/tpcc/pg_tprocc_run.tcl 2>&1 | tee /tmp/hammerdb-run.log; if grep -qE 'FINISHED FAILED|Error in Virtual User' /tmp/hammerdb-run.log; then echo 'HammerDB reported virtual-user failures - see the log above' >&2; exit 1; fi; awk '/System achieved [0-9]+ NOPM/ { match($0, /System achieved [0-9]+ NOPM/); v=substr($0, RSTART+16, RLENGTH-21) } END { if (v=="") exit 1; "date +%s"|getline ts; printf("%s000000 sqlop=%s\n", ts, v) }' /tmp/hammerdb-run.log
+        note: RUN HAMMERDB TPC-C (measured)
+        command: ./hammerdbcli auto /tmp/repo/db/pg/tpcc/pg_tprocc_run.tcl 2>&1 | tee /tmp/hammerdb-run.log; if grep -qE 'FINISHED FAILED|Error in Virtual User' /tmp/hammerdb-run.log; then echo 'HammerDB reported virtual-user failures - see the log above' >&2; exit 1; fi; echo '=== HAMMERDB TIME PROFILE ==='; cat /tmp/hdbxtprofile.log || echo 'TIME PROFILE MISSING'; awk '/System achieved [0-9]+ NOPM/ { match($0, /System achieved [0-9]+ NOPM/); v=substr($0, RSTART+16, RLENGTH-21) } END { if (v=="") exit 1; "date +%s"|getline ts; printf("%s000000 sqlop=%s\n", ts, v) }' /tmp/hammerdb-run.log
         shell: bash
         log-stdout: true
         read-sci-stdout: true

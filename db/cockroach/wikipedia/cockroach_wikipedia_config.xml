@@ -29,7 +29,7 @@
     <terminals>8</terminals>
     <works>
         <work>
-            <time>60</time>
+            <time>300</time>
             <rate>unlimited</rate>
             <!-- Default OLTP-Bench mix: ~91% reads (page views), ~9% writes. -->
             <weights>1,1,7,90,1</weights>

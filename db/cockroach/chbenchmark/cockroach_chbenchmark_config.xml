@@ -32,7 +32,7 @@
 
     <works>
         <work>
-            <time>60</time>
+            <time>300</time>
             <rate>unlimited</rate>
             <!-- Per-workload weights (each list sums to 100). -->
             <weights bench="tpcc">45,43,4,4,4</weights>

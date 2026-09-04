@@ -23,7 +23,7 @@
     <terminals>8</terminals>
     <works>
         <work>
-            <time>60</time>
+            <time>300</time>
             <rate>unlimited</rate>
             <!-- Default OLTP-Bench mix: 50 read / 5 insert / 15 scan / 10 update / 10 delete / 10 read-modify-write. -->
             <weights>50,5,15,10,10,10</weights>

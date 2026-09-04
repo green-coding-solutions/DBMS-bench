@@ -1,4 +1,7 @@
 #!/bin/tclsh
+# Warm-up run for the EDBT 2027 paper: identical to the timed run but 2 minutes long,
+# no ramp-up inside HammerDB and no time profile. Its result is discarded; it only
+# brings the engine into steady state before the measured phase.
 # maintainer: Pooja Jain
 
 puts "SETTING CONFIGURATION"
@@ -22,9 +25,9 @@ diset tpcc mssqls_dbase tpcc
 diset tpcc mssqls_driver timed
 diset tpcc mssqls_total_iterations 10000000
 diset tpcc mssqls_rampup 0
-diset tpcc mssqls_duration 5
+diset tpcc mssqls_duration 2
 diset tpcc mssqls_checkpoint false
-diset tpcc mssqls_timeprofile true
+diset tpcc mssqls_timeprofile false
 diset tpcc mssqls_allwarehouse true
 
 # hammerdbcli tears the Virtual Users down rampup+duration+keepalive_margin seconds after
@@ -43,6 +46,6 @@ set jobid [ vurun ]
 vudestroy
 tcstop
 puts "TEST COMPLETE"
-set of [ open /tmp/mssql_tprocc w ]
+set of [ open /tmp/mssql_tprocc_warmup w ]
 puts $of $jobid
 close $of

@@ -9,7 +9,9 @@ diset connection mysql_host mysql_container
 diset connection mysql_port 3306
 
 set vu 4
-set warehouse [ expr {$vu * 20} ]
+# EDBT 2027 paper: 10 warehouses per virtual user (40 in total, about 4 GB). Halves the
+# unmeasured build time and lets a tuned buffer pool hold the data set at T1 and T2.
+set warehouse [ expr {$vu * 10} ]
 diset tpcc mysql_count_ware $warehouse
 diset tpcc mysql_num_vu $vu
 diset tpcc mysql_user mysql

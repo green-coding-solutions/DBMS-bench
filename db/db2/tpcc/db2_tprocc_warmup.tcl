@@ -1,4 +1,7 @@
 #!/bin/tclsh
+# Warm-up run for the EDBT 2027 paper: identical to the timed run but 2 minutes long,
+# no ramp-up inside HammerDB and no time profile. Its result is discarded; it only
+# brings the engine into steady state before the measured phase.
 # maintainer: Pooja Jain
 
 puts "SETTING CONFIGURATION"
@@ -14,9 +17,9 @@ diset tpcc db2_pass ibmdb2
 diset tpcc db2_dbase tpcc
 diset tpcc db2_driver timed
 diset tpcc db2_rampup 0
-diset tpcc db2_duration 5
+diset tpcc db2_duration 2
 diset tpcc db2_allwarehouse true
-diset tpcc db2_timeprofile true
+diset tpcc db2_timeprofile false
 
 # hammerdbcli tears the Virtual Users down rampup+duration+keepalive_margin seconds after
 # vurun, and the 60s default was too tight for Oracle's monitor VU to finish its end-of-run
@@ -35,6 +38,6 @@ set jobid [ vurun ]
 vudestroy
 tcstop
 puts "TEST COMPLETE"
-set of [ open /tmp/db2_tprocc w ]
+set of [ open /tmp/db2_tprocc_warmup w ]
 puts $of $jobid
 close $of

@@ -1,4 +1,7 @@
 #!/bin/tclsh
+# Warm-up run for the EDBT 2027 paper: identical to the timed run but 2 minutes long,
+# no ramp-up inside HammerDB and no time profile. Its result is discarded; it only
+# brings the engine into steady state before the measured phase.
 # maintainer: Pooja Jain
 
 puts "SETTING CONFIGURATION"
@@ -20,10 +23,10 @@ diset tpcc pg_raiseerror true
 diset tpcc pg_driver timed
 
 diset tpcc pg_rampup 0
-diset tpcc pg_duration 5
+diset tpcc pg_duration 2
 
 diset tpcc pg_vacuum true
-diset tpcc pg_timeprofile true
+diset tpcc pg_timeprofile false
 diset tpcc pg_allwarehouse true
 
 # hammerdbcli tears the Virtual Users down rampup+duration+keepalive_margin seconds after
@@ -42,6 +45,6 @@ set jobid [ vurun ]
 vudestroy
 tcstop
 puts "TEST COMPLETE"
-set of [ open /tmp/pg_tprocc w ]
+set of [ open /tmp/pg_tprocc_warmup w ]
 puts $of $jobid
 close $of
