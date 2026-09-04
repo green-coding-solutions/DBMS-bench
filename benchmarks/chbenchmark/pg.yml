@@ -11,6 +11,7 @@ custom_metrics:
     sci: true
 
 services:
+  cockroach: # unused — empty key removes the service
   mariadb: # unused — empty key removes the service
   mysql: # unused — empty key removes the service
   oracle: # unused — empty key removes the service

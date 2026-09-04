@@ -1,0 +1,56 @@
+<?xml version="1.0"?>
+<!-- BenchBase Wikipedia workload for CockroachDB (DBMS-bench).
+     Standard CMU BenchBase config; only connection details, scalefactor,
+     terminals and rate are repo-specific. Driven by the benchbase container
+     against the default-configuration CockroachDB container. -->
+<!-- CockroachDB uses BenchBase's COCKROACHDB profile: PostgreSQL-wire compatible,
+     so it reuses org.postgresql.Driver but gets Cockroach-specific DDL from BenchBase.
+     Isolation is deliberately TRANSACTION_READ_COMMITTED, matching every other engine
+     here (CockroachDB's own sample configs use SERIALIZABLE; READ COMMITTED is enabled
+     by default since v23.2, verified on v26.2). The node is reached over plaintext TCP
+     with password auth — see the cockroach service in compose.yml. -->
+<parameters>
+
+    <!-- Connection details -->
+    <type>COCKROACHDB</type>
+    <driver>org.postgresql.Driver</driver>
+    <url>jdbc:postgresql://cockroach_container:26257/benchbase?sslmode=disable&amp;ApplicationName=wikipedia&amp;reWriteBatchedInserts=true</url>
+    <username>root</username>
+    <password>cockroach</password>
+    <reconnectOnConnectionFailure>true</reconnectOnConnectionFailure>
+    <isolation>TRANSACTION_READ_COMMITTED</isolation>
+    <batchsize>128</batchsize>
+
+    <!-- Wikipedia scalefactor = wiki pages / 1000 (sf=10 -> ~10k pages of real article text). -->
+    <scalefactor>10</scalefactor>
+
+    <!-- Run the mix at max throughput for 60s on a fixed terminal count so
+         every engine sees the same load. Tune <terminals> to the benchmark host. -->
+    <terminals>8</terminals>
+    <works>
+        <work>
+            <time>60</time>
+            <rate>unlimited</rate>
+            <!-- Default OLTP-Bench mix: ~91% reads (page views), ~9% writes. -->
+            <weights>1,1,7,90,1</weights>
+        </work>
+    </works>
+
+    <transactiontypes>
+        <transactiontype>
+            <name>AddWatchList</name>
+        </transactiontype>
+        <transactiontype>
+            <name>RemoveWatchList</name>
+        </transactiontype>
+        <transactiontype>
+            <name>UpdatePage</name>
+        </transactiontype>
+        <transactiontype>
+            <name>GetPageAnonymous</name>
+        </transactiontype>
+        <transactiontype>
+            <name>GetPageAuthenticated</name>
+        </transactiontype>
+    </transactiontypes>
+</parameters>

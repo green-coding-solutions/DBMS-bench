@@ -11,10 +11,11 @@ various DBMS plus a load-driver container per benchmark family:
 
 Currently we support:
 
+- CockroachDB (BenchBase benchmarks only — see [CockroachDB support](#cockroachdb-support))
 - IBM Db2 (needs a one-time image build — see [Db2 setup](#db2-setup))
 - MariaDB
 - Microsoft SQL Server
-- MySql
+- MySql (needs an auth-cache warmup — see [MySQL authentication](#mysql-authentication))
 - Oracle Database Free
 - PostgreSQL
 
@@ -35,6 +36,25 @@ whenever it changes:
 for d in tpcc tpch wikipedia ycsb chbenchmark; do cp compose.yml "benchmarks/$d/compose.yml"; done
 ```
 
+### Image tags
+
+Every image is on a **floating tag** (`:latest`), not a pinned digest or patch version. The scenarios are scheduled
+weekly in the [GMT watchlist](https://metrics.green-coding.io/watchlist.html), GMT re-pulls the tag on every run, and
+it records the resolved image and the installed OS/DB packages alongside the measurement — so the version under test
+is captured *in the run*, which is where it is actually needed, instead of being frozen in this repo by a stream of
+Dependabot commits.
+
+Every database image floats, MySQL included. That needed one extra step to keep HammerDB working — see
+[MySQL authentication](#mysql-authentication).
+
+The one exception is not a measured image at all: `benchmarks/benchbase/Dockerfile` builds on a pinned
+`eclipse-temurin:23-jdk`. That is a build-time toolchain, and `eclipse-temurin:latest` (JDK 25+) does not build
+BenchBase — its `fmt-maven-plugin` (google-java-format) reaches into internal javac APIs and fails with
+`NoSuchMethodError`. See the comment in that Dockerfile.
+
+Because the tags float, **runs are not reproducible across weeks by construction** — that is deliberate for the
+watchlist trend, but for a paper build pin the tags (and `BENCHBASE_REF`) on a branch first.
+
 We currently run five benchmarks:
 
 - [TPC-C](https://en.wikipedia.org/wiki/TPC-C) (HammerDB TPROC-C) — write-heavy OLTP; recorded metric is NOPM
@@ -48,7 +68,133 @@ We currently run five benchmarks:
   TPC-C transactions and 22 TPC-H-style analytical queries run *concurrently* on one schema; the SCI functional unit is
   the number of requests completed (OLTP txns + OLAP queries — see the per-transaction CSVs to split them)
 
-The three BenchBase benchmarks cover **5** engines — there is no Db2 BenchBase profile, so Db2 has TPC-C/TPC-H only.
+### Engine / benchmark coverage
+
+Not every engine runs every benchmark. What exists today:
+
+| Engine | TPC-C (HammerDB) | TPC-H (HammerDB) | Wikipedia | YCSB | CH-benCHmark |
+|---|---|---|---|---|---|
+| PostgreSQL | ✅ | ✅ | ✅ | ✅ | ✅ |
+| MariaDB | ✅ | ✅ | ✅ | ✅ | ✅ |
+| MySQL | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Oracle Free | ✅ | ✅ | ✅ | ✅ | ✅ |
+| SQL Server | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Db2 | ✅ | ✅ | ❌ no profile | ❌ | ❌ |
+| CockroachDB | ❌ see below | ❌ see below | ⚠️ loader hangs | ✅ | ✅ schema only |
+
+Db2 has no BenchBase profile upstream, so it is TPC-C/TPC-H only. The CockroachDB ❌/⚠️ is explained below.
+
+## CockroachDB support
+
+CockroachDB is PostgreSQL-wire compatible, so it needs no driver of its own: BenchBase drives it through its
+upstream `COCKROACHDB` profile (which reuses `org.postgresql.Driver`) on port 26257.
+
+**The BenchBase image must be rebuilt** before the CockroachDB scenarios can run — `cockroachdb` was added to
+`BENCHBASE_PROFILES`, and the published `ribalba/benchbase:latest` predates it. See
+[BenchBase setup](#benchbase-setup).
+
+**It runs as a secure node, not `--insecure`.** The `cockroach` service in `compose.yml` generates self-signed
+certs on boot and starts with `--accept-sql-without-tls`, then sets a root password and writes a readiness flag
+that the healthcheck waits on. `--accept-sql-without-tls` is the important part: it keeps the SQL session on
+plaintext TCP like every other engine here, so TLS on a single engine does not skew the energy comparison,
+while still allowing normal password auth.
+
+**Neither HammerDB benchmark works on CockroachDB**, which is why there is no `benchmarks/tpcc/cockroach.yml`
+or `benchmarks/tpch/cockroach.yml`. Both get all the way through loading their data and then fail on DDL that
+CockroachDB does not implement:
+
+- **TPC-C** — HammerDB emits the transaction bodies as PL/pgSQL functions using the old `DECLARE x ALIAS FOR $1`
+  form:
+
+  ```
+  Vuser 1:CREATING TPCC FUNCTIONS
+  Error in Virtual User 1: ERROR:  at or near "$": syntax error
+  ```
+
+  Not a configuration problem: `pg_storedprocs false` only changes what the *driver* calls at run time, the
+  build creates the functions either way.
+
+- **TPC-H** — HammerDB creates the tables with nullable columns and adds the primary keys afterwards. PostgreSQL
+  implicitly promotes such a column to `NOT NULL`; CockroachDB refuses:
+
+  ```
+  Vuser 1:CREATING TPCH INDEXES
+  Error in Virtual User 1: ERROR:  cannot use nullable column "r_regionkey" in primary key
+  ```
+
+Fixing either would mean patching HammerDB's own schema DDL, so CockroachDB is BenchBase-only for now.
+TPC-C-style OLTP coverage still exists through CH-benCHmark, which runs the composite `tpcc,chbenchmark`
+workload — but those are BenchBase requests, not HammerDB NOPM, so they are **not** comparable with the other
+engines' TPC-C numbers.
+
+**Verification status (2026-09-03, CockroachDB v26.2.6).** YCSB is confirmed end to end: schema created, ~1M
+rows loaded, the 60 s measured run completed and the scenario's `measuredRequests` parse produced
+`ycsb_requests=187406`. CH-benCHmark's schema (`-b tpcc,chbenchmark --create`, 12 tables) builds cleanly, but its
+load and measured run have not been exercised yet. **Wikipedia does not currently complete**: the schema builds
+and the loader gets through `page`, `text`/`revision` and part of `watchlist`, then deadlocks — every database
+session closes, the JVM sits at ~0 % CPU and no error is printed. That is worth a look before trusting
+`benchmarks/wikipedia/cockroach.yml`; the other two are the ones to run first.
+
+**One cluster setting is raised at boot.** `sql.conn.max_read_buffer_message_size` goes from its 16 MiB default
+to 64 MiB, because BenchBase's Wikipedia loader batches 128 rows of real article text into a single `INSERT` and
+overruns it — the load dies with `Batch entry 4 INSERT INTO text ...`. That is a wire-protocol ceiling rather
+than a performance knob; the alternative would be shrinking `<batchsize>` for CockroachDB alone, which
+`check_repo.py` rejects because it would make the workload different from every other engine's.
+
+Also note the BenchBase configs use `TRANSACTION_READ_COMMITTED` like every other engine, not the
+`SERIALIZABLE` of CockroachDB's own sample configs — READ COMMITTED has been available since v23.2 and is
+enabled by default (verified on v26.2), which keeps the cross-engine comparison honest.
+
+## MySQL authentication
+
+MySQL is on `mysql:latest` (currently 26.7) like everything else. MySQL 9.0 removed
+`mysql_native_password`, so every account now uses `caching_sha2_password`, which **refuses to authenticate
+over a plaintext connection**:
+
+```
+Error in Virtual User 1: mysqlconnect/db server: Authentication plugin 'caching_sha2_password'
+reported error: Authentication requires secure connection.
+```
+
+BenchBase never noticed — its JDBC driver negotiates `caching_sha2_password` fine — but it stopped HammerDB
+dead, because the bundled `mysqltcl` has no RSA key-exchange path (no `--get-server-public-key`).
+
+**The fix, in one line: prime the server's password cache once over TLS, then everything else works over
+plaintext.** `caching_sha2_password` has two modes. Full authentication needs a secure channel (TLS) or RSA
+key exchange. But once the server has the password in its in-memory cache, *fast* authentication kicks in — a
+plain challenge/response scramble that is safe, and allowed, over an unencrypted connection. So the `mysql`
+service in `compose.yml` runs a `setup-commands` block that makes exactly one TLS connection per account before
+the benchmark starts:
+
+```yaml
+setup-commands:
+  - shell: bash
+    command: |
+      timeout 300 bash -c "until mysqladmin ping -h 127.0.0.1 -uroot -pmysql --silent >/dev/null 2>&1; do sleep 2; done"
+      MYSQL_PWD=mysql mysql -h mysql_container --protocol=TCP -uroot --ssl-mode=REQUIRED -e "SELECT 1" >/dev/null
+      MYSQL_PWD=mysql mysql -h mysql_container --protocol=TCP -umysql --ssl-mode=REQUIRED -e "SELECT 1" >/dev/null
+```
+
+Why it is built this way:
+
+- **Two accounts.** TPC-C connects as `mysql`, TPC-H as `root` (see `db/mysql/*/`), and the cache is per
+  account, so both are primed. As it happens `root` is usually already cached because the image's own
+  entrypoint authenticates as root during initialisation — but relying on that would be fragile.
+- **Not `127.0.0.1`.** The warmup connects to `mysql_container`, its own network name. `root` exists as both
+  `root@localhost` and `root@'%'`; a loopback connection matches the *localhost* account and would prime the
+  wrong cache entry.
+- **`setup-commands`, not a flow step.** These run before the measured flow, so MySQL keeps exactly the same
+  phase structure as every other engine. They run right after `docker run` and *before* the healthcheck, which
+  is why the explicit wait loop is there. Cost is about 8 s on a cold container.
+- **The measured workload is still plaintext.** TLS is used only for the one-connection warmup, so MySQL is
+  measured over plaintext TCP exactly like every other engine and the energy comparison stays honest. This is
+  the reason for preferring the cache warmup over simply turning on `mysql_ssl` in the HammerDB scripts.
+
+The cache lives in memory and is dropped by a server restart or `FLUSH PRIVILEGES`. Neither happens inside a
+run, but that is the thing to check first if `Authentication requires secure connection` ever comes back.
+
+Verified 2026-09-04 against `mysql:latest` (26.7.0): TPC-C builds and runs (NOPM extracted normally), with the
+warmup removed the same build fails on the error above.
 
 ## Db2 setup
 
@@ -78,6 +224,11 @@ The Wikipedia, YCSB and CH-benCHmark scenarios are driven by a `benchbase` conta
 self-contained distribution per database (each bundles that engine's JDBC driver), so `benchmarks/benchbase/build-image.sh` builds
 every engine's profile into a single image and pushes it to Docker Hub as `ribalba/benchbase:latest`, which the
 scenarios pull. Each profile lands in `/benchbase/benchbase-<profile>/` and the scenario `cd`s into the right one.
+
+> **Rebuild required for CockroachDB.** `cockroachdb` was added to `BENCHBASE_PROFILES`, but the image currently
+> published as `ribalba/benchbase:latest` was built before that. Until it is rebuilt and pushed, the three
+> `benchmarks/*/cockroach.yml` scenarios will fail at `cd /benchbase/benchbase-cockroachdb`. Every other engine is
+> unaffected.
 
 Before running the Wikipedia/YCSB/CH-benCHmark scenarios (one-time):
 

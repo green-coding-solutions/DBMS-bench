@@ -1,7 +1,7 @@
 ---
-name: BenchBase PostgreSQL YCSB benchmark
+name: BenchBase CockroachDB YCSB benchmark
 author: Didi Hoffmann <didi@green-coding.berlin>
-description: Benchmarks PostgreSQL with BenchBase using the YCSB workload
+description: Benchmarks CockroachDB with BenchBase using the YCSB workload
 
 compose-file: !include compose.yml
 
@@ -11,7 +11,7 @@ custom_metrics:
     sci: true
 
 services:
-  cockroach: # unused — empty key removes the service
+  postgres: # unused — empty key removes the service
   mariadb: # unused — empty key removes the service
   mysql: # unused — empty key removes the service
   oracle: # unused — empty key removes the service
@@ -20,18 +20,18 @@ services:
   hammerdb: # unused — empty key removes the service
   benchbase: # load driver; wait for the database to be healthy first
     depends_on:
-      postgres:
+      cockroach:
         condition: service_healthy
 
 flow:
   - name: Create benchbase database
-    container: postgres_container
+    container: cockroach_container
     commands:
       - type: console
         note: CREATE BENCHBASE DATABASE
-        # No `psql | grep` here: grep -q closes the pipe on the first match, which under
-        # pipefail surfaces psql's SIGPIPE as a failed pipeline.
-        command: if [ -z "$(psql "postgresql://postgres:postgres@localhost:5432/postgres" -tAc "SELECT 1 FROM pg_database WHERE datname='benchbase'")" ]; then psql "postgresql://postgres:postgres@localhost:5432/postgres" -c "CREATE DATABASE benchbase"; fi
+        # The node runs secure (see compose.yml), so the built-in client authenticates
+        # with the generated certs rather than the SQL password.
+        command: /cockroach/cockroach sql --certs-dir=/tmp/certs -e "CREATE DATABASE IF NOT EXISTS benchbase;"
         shell: bash
         log-stdout: true
   - name: Load YCSB schema and data
@@ -39,7 +39,7 @@ flow:
     commands:
       - type: console
         note: BENCHBASE CREATE + LOAD
-        command: cd /benchbase/benchbase-postgres && java -jar benchbase.jar -b ycsb -c /tmp/repo/db/pg/ycsb/pg_ycsb_config.xml --create=true --load=true --execute=false
+        command: cd /benchbase/benchbase-cockroachdb && java -jar benchbase.jar -b ycsb -c /tmp/repo/db/cockroach/ycsb/cockroach_ycsb_config.xml --create=true --load=true --execute=false
         shell: bash
         log-stdout: true
   - name: Run YCSB workload
@@ -47,7 +47,7 @@ flow:
     commands:
       - type: console
         note: BENCHBASE EXECUTE
-        command: cd /benchbase/benchbase-postgres && java -jar benchbase.jar -b ycsb -c /tmp/repo/db/pg/ycsb/pg_ycsb_config.xml --create=false --load=false --execute=true 2>&1 | tee /tmp/benchbase-run.log; awk 'match($0,/measuredRequests=[0-9]+/) {v=substr($0,RSTART+17,RLENGTH-17)} END {if (v=="") exit 1; "date +%s"|getline ts; printf("%s000000 ycsb_requests=%s\n", ts, v)}' /tmp/benchbase-run.log
+        command: cd /benchbase/benchbase-cockroachdb && java -jar benchbase.jar -b ycsb -c /tmp/repo/db/cockroach/ycsb/cockroach_ycsb_config.xml --create=false --load=false --execute=true 2>&1 | tee /tmp/benchbase-run.log; awk 'match($0,/measuredRequests=[0-9]+/) {v=substr($0,RSTART+17,RLENGTH-17)} END {if (v=="") exit 1; "date +%s"|getline ts; printf("%s000000 ycsb_requests=%s\n", ts, v)}' /tmp/benchbase-run.log
         shell: bash
         log-stdout: true
         read-sci-stdout: true

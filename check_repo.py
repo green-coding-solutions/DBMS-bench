@@ -35,7 +35,12 @@ REPO = Path(__file__).resolve().parent
 
 # Database engines that may take part in a benchmark, and the benchmark folders
 # that hold the GMT usage scenarios + the compose.yml copy.
-DATABASES = ["pg", "maria", "mysql", "oracle", "mssql", "db2"]
+# CockroachDB is BenchBase-only: neither HammerDB benchmark can build a schema on it
+# (both load their data fine and then fail on DDL Cockroach does not implement —
+# TPROC-C on PL/pgSQL `DECLARE x ALIAS FOR $1`, TPROC-H on adding a primary key over
+# a nullable column). See the CockroachDB section in README.md. Engines without a
+# script for a benchmark are simply skipped below, so this needs no special casing.
+DATABASES = ["pg", "maria", "mysql", "oracle", "mssql", "db2", "cockroach"]
 BENCHMARKS = ["tpcc", "tpch", "wikipedia", "ycsb", "chbenchmark"]
 
 # Driver scripts live at db/<db>/<benchmark>/. HammerDB benchmarks are configured in

@@ -24,7 +24,7 @@ OUT_IMAGE="${OUT_IMAGE:-ribalba/benchbase:latest}"
 BENCHBASE_REF="${BENCHBASE_REF:-main}"
 # Engines we benchmark. BenchBase profile names (note: postgres->pg, mariadb->maria,
 # sqlserver->mssql in this repo's directory naming). No Db2 profile exists.
-BENCHBASE_PROFILES="${BENCHBASE_PROFILES:-postgres mysql mariadb sqlserver oracle}"
+BENCHBASE_PROFILES="${BENCHBASE_PROFILES:-postgres mysql mariadb sqlserver oracle cockroachdb}"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 
 echo ">> building $OUT_IMAGE"

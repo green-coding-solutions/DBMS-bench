@@ -9,13 +9,20 @@
 # syntax=docker/dockerfile:1
 
 # --- build stage: compile each requested profile from source ---------------
-# BenchBase's pom.xml pins Java 23 (maven.compiler.release=23).
+# BenchBase's pom.xml pins Java 23 (maven.compiler.release=23). This base stays PINNED
+# while everything in compose.yml floats on `:latest`: it is a build-time toolchain,
+# not a measured runtime, and `eclipse-temurin:latest` (JDK 25+) does NOT build
+# BenchBase — its fmt-maven-plugin (google-java-format) reaches into internal javac
+# APIs and dies with:
+#   Failed to execute goal com.spotify.fmt:fmt-maven-plugin:2.25:format ...
+#   An API incompatibility was encountered ...: java.lang.NoSuchMethodError: null
+# Verified 2026-09-03. Revisit when upstream BenchBase moves off Java 23.
 FROM eclipse-temurin:23-jdk AS build
 
 # Moving default; pin a commit SHA via build-image.sh for a reproducible build.
 ARG BENCHBASE_REF=main
 # Space-separated BenchBase Maven profiles to bake in.
-ARG BENCHBASE_PROFILES="postgres mysql mariadb sqlserver oracle"
+ARG BENCHBASE_PROFILES="postgres mysql mariadb sqlserver oracle cockroachdb"
 
 RUN apt-get update \
  && apt-get install -y --no-install-recommends git ca-certificates \

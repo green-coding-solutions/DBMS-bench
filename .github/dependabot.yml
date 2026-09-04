@@ -3,6 +3,12 @@
 # Please see the documentation for all configuration options:
 # https://docs.github.com/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
 
+# Every image in compose.yml is on a floating tag now, so the docker-compose block
+# below is deliberately near-idle: the runs are scheduled weekly in the GMT watchlist,
+# GMT re-pulls each tag per run, and it records the resolved image plus the installed
+# packages with the measurement — the version under test is captured in the run rather
+# than pinned in this repo. The block is kept so that anything re-pinned later is still
+# tracked automatically without having to remember to re-add it here.
 version: 2
 updates:
   - package-ecosystem: "docker-compose" # See documentation for possible values
@@ -25,9 +31,15 @@ updates:
         group-by: "dependency-name"
     schedule:
       interval: "weekly"
+
+  # The BenchBase driver image is the one thing still pinned on purpose: its build
+  # needs a JDK that google-java-format can run on, and eclipse-temurin:latest (25+)
+  # breaks the Maven build outright. Patch/minor bumps inside the 23 line are welcome,
+  # a major bump is not — so it is ignored here and has to be a deliberate change.
+  - package-ecosystem: "docker"
+    directory: "/benchmarks/benchbase"
+    schedule:
+      interval: "weekly"
     ignore:
-      # MySQL must stay on the 8.4 LTS line: 9.x removed mysql_native_password and
-      # HammerDB 5.0 cannot authenticate to caching_sha2_password over plaintext TCP.
-      # See the comment on the mysql service in compose.yml.
-      - dependency-name: "mysql"
+      - dependency-name: "eclipse-temurin"
         update-types: ["version-update:semver-major"]
