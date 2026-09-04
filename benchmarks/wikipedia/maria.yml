@@ -11,6 +11,19 @@ custom_metrics:
     sci: true
 
 services:
+  mariadb:
+    # T2: workload-tuned for throughput, class oltp. Server parameters as command-line
+    # arguments so they are in force from the first start; provenance in TIERS.md.
+    command:
+      - "--innodb-buffer-pool-size=6144M"
+      - "--innodb-log-file-size=2G"
+      - "--innodb-purge-threads=4"
+      - "--innodb-log-buffer-size=64M"
+      - "--innodb-io-capacity=4000"
+      - "--innodb-io-capacity-max=20000"
+      - "--innodb-adaptive-hash-index=OFF"
+      - "--innodb-spin-wait-delay=6"
+      - "--innodb-flush-method=O_DIRECT"
   cockroach: # unused — empty key removes the service
   postgres: # unused — empty key removes the service
   mysql: # unused — empty key removes the service
@@ -24,6 +37,17 @@ services:
         condition: service_healthy
 
 flow:
+  - name: Configure DBMS
+    container: mariadb_container
+    commands:
+      # Paper tier branch: prints CONFIG <name>=<value> for every parameter any tier
+      # touches, then the full effective configuration, so the run log proves the tier
+      # took effect. Outside the measured phase; see TIERS.md.
+      - type: console
+        note: CONFIGURE DBMS (T2 oltp, applied at container start through the command line above)
+        command: mariadb -uroot -pmaria --skip-column-names < /tmp/repo/db/maria/tiers/configure.sql
+        shell: bash
+        log-stdout: true
   - name: Create benchbase database
     container: mariadb_container
     commands:

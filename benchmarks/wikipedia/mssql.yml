@@ -24,6 +24,17 @@ services:
         condition: service_healthy
 
 flow:
+  - name: Configure DBMS
+    container: mssql_container
+    commands:
+      # Paper tier branch: prints CONFIG <name>=<value> for every parameter any tier
+      # touches, then the full effective configuration, so the run log proves the tier
+      # took effect. Outside the measured phase; see TIERS.md.
+      - type: console
+        note: CONFIGURE DBMS (T2 oltp, applied here)
+        command: /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P Hammerdb_2024 -C -b -W -h -1 -i /tmp/repo/db/mssql/tiers/t2_oltp.sql
+        shell: bash
+        log-stdout: true
   - name: Create benchbase database
     container: mssql_container
     commands:

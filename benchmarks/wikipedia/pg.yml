@@ -11,6 +11,49 @@ custom_metrics:
     sci: true
 
 services:
+  postgres:
+    # T2: workload-tuned for throughput, class oltp. Server parameters as command-line
+    # arguments so they are in force from the first start; provenance in TIERS.md.
+    command:
+      - "postgres"
+      - "-c"
+      - "max_connections=300"
+      - "-c"
+      - "shared_buffers=2048MB"
+      - "-c"
+      - "effective_cache_size=6144MB"
+      - "-c"
+      - "maintenance_work_mem=512MB"
+      - "-c"
+      - "work_mem=8967kB"
+      - "-c"
+      - "checkpoint_completion_target=0.9"
+      - "-c"
+      - "wal_buffers=16MB"
+      - "-c"
+      - "default_statistics_target=100"
+      - "-c"
+      - "random_page_cost=1.1"
+      - "-c"
+      - "effective_io_concurrency=200"
+      - "-c"
+      - "min_wal_size=2GB"
+      - "-c"
+      - "max_wal_size=8GB"
+      - "-c"
+      - "huge_pages=try"
+      - "-c"
+      - "wal_compression=lz4"
+      - "-c"
+      - "max_worker_processes=4"
+      - "-c"
+      - "max_parallel_workers=4"
+      - "-c"
+      - "max_parallel_workers_per_gather=2"
+      - "-c"
+      - "max_parallel_maintenance_workers=2"
+      - "-c"
+      - "jit=off"
   cockroach: # unused — empty key removes the service
   mariadb: # unused — empty key removes the service
   mysql: # unused — empty key removes the service
@@ -24,6 +67,17 @@ services:
         condition: service_healthy
 
 flow:
+  - name: Configure DBMS
+    container: postgres_container
+    commands:
+      # Paper tier branch: prints CONFIG <name>=<value> for every parameter any tier
+      # touches, then the full effective configuration, so the run log proves the tier
+      # took effect. Outside the measured phase; see TIERS.md.
+      - type: console
+        note: CONFIGURE DBMS (T2 oltp, applied at container start through the command line above)
+        command: psql -U postgres -v ON_ERROR_STOP=1 -Atf /tmp/repo/db/pg/tiers/configure.sql
+        shell: bash
+        log-stdout: true
   - name: Create benchbase database
     container: postgres_container
     commands:
