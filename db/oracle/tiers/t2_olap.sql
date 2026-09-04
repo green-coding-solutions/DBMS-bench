@@ -4,7 +4,7 @@
 WHENEVER SQLERROR EXIT SQL.SQLCODE
 set pagesize 0 linesize 250 feedback off heading off
 select '=== SHIPPED CONFIGURATION (before the tier is applied) ===' from dual;
-select 'CONFIG '||name||'='||value from v$parameter where name in ('sga_max_size', 'sga_target', 'pga_aggregate_target', 'filesystemio_options', 'log_checkpoints_to_alert', 'log_checkpoint_timeout', 'log_checkpoint_interval', 'fast_start_mttr_target', 'parallel_max_servers', 'optimizer_dynamic_sampling') order by name;
+select 'CONFIG '||name||'='||value from v$parameter where name in ('sga_max_size', 'sga_target', 'pga_aggregate_target', 'filesystemio_options', 'log_checkpoints_to_alert', 'log_checkpoint_timeout', 'log_checkpoint_interval', 'fast_start_mttr_target', 'optimizer_dynamic_sampling') order by name;
 select 'CONFIG redo log groups='||count(*)||' x '||min(bytes/1024/1024)||'M' from v$log;
 select 'INFO redo group '||group#||' '||bytes/1024/1024||'M '||status from v$log order by group#;
 select 'INFO SGA '||name||'='||value from v$sga;
@@ -19,7 +19,6 @@ ALTER SYSTEM SET log_checkpoints_to_alert=TRUE SCOPE=SPFILE;
 ALTER SYSTEM SET log_checkpoint_timeout=0 SCOPE=SPFILE;
 ALTER SYSTEM SET log_checkpoint_interval=0 SCOPE=SPFILE;
 ALTER SYSTEM SET fast_start_mttr_target=0 SCOPE=SPFILE;
-ALTER SYSTEM SET parallel_max_servers=4 SCOPE=SPFILE;
 ALTER SYSTEM SET optimizer_dynamic_sampling=4 SCOPE=SPFILE;
 -- Redo log capacity: three new groups of 1024M, then the shipped 200 MB groups are dropped.
 ALTER DATABASE ADD LOGFILE GROUP 4 '/opt/oracle/oradata/FREE/redo04.log' SIZE 1024M;
@@ -37,7 +36,7 @@ STARTUP
 ALTER PLUGGABLE DATABASE ALL OPEN;
 ALTER SYSTEM REGISTER;
 select '=== TIER CONFIGURATION CHECK ===' from dual;
-select 'CONFIG '||name||'='||value from v$parameter where name in ('sga_max_size', 'sga_target', 'pga_aggregate_target', 'filesystemio_options', 'log_checkpoints_to_alert', 'log_checkpoint_timeout', 'log_checkpoint_interval', 'fast_start_mttr_target', 'parallel_max_servers', 'optimizer_dynamic_sampling') order by name;
+select 'CONFIG '||name||'='||value from v$parameter where name in ('sga_max_size', 'sga_target', 'pga_aggregate_target', 'filesystemio_options', 'log_checkpoints_to_alert', 'log_checkpoint_timeout', 'log_checkpoint_interval', 'fast_start_mttr_target', 'optimizer_dynamic_sampling') order by name;
 select 'CONFIG redo log groups='||count(*)||' x '||min(bytes/1024/1024)||'M' from v$log;
 select 'INFO redo group '||group#||' '||bytes/1024/1024||'M '||status from v$log order by group#;
 select 'INFO SGA '||name||'='||value from v$sga;
