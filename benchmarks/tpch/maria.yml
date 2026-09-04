@@ -11,6 +11,12 @@ custom_metrics:
     sci: true
 
 services:
+  mariadb:
+    # T1: resource-sized, workload-blind. Server parameters as command-line
+    # arguments so they are in force from the first start; provenance in TIERS.md.
+    command:
+      - "--innodb-buffer-pool-size=6144M"
+      - "--innodb-log-file-size=2G"
   cockroach: # unused — empty key removes the service
   postgres: # empty key will remove the unused service
   mysql: # empty key will remove the unused service
@@ -24,6 +30,17 @@ services:
         condition: service_healthy
 
 flow:
+  - name: Configure DBMS
+    container: mariadb_container
+    commands:
+      # Paper tier branch: prints CONFIG <name>=<value> for every parameter any tier
+      # touches, then the full effective configuration, so the run log proves the tier
+      # took effect. Outside the measured phase; see TIERS.md.
+      - type: console
+        note: CONFIGURE DBMS (T1, applied at container start through the command line above)
+        command: mariadb -uroot -pmaria --skip-column-names < /tmp/repo/db/maria/tiers/configure.sql
+        shell: bash
+        log-stdout: true
   - name: Build Schema
     container: hammerdb_container
     commands:
