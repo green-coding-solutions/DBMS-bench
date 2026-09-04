@@ -298,7 +298,7 @@ is the base of every tier and host branch and differs from `main` in these point
   steps keep the plain URL on purpose: the same setting could slow single-statement transactions, and a
   local check could not rule that out because run-to-run throughput varied by a factor of 8.7 from warm-up.
 
-## Paper branch `t1`: T1: resource-sized, workload-blind
+## Paper branch `t1-new`: T1: resource-sized, workload-blind
 
 Forks from `t0`. Every scenario applies the tier configuration to the DBMS (see `TIERS.md` for
 every parameter, its value, its source and what was deliberately not applied) and starts with a
