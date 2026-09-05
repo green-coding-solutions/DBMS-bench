@@ -293,10 +293,14 @@ is the base of every tier and host branch and differs from `main` in these point
 - `run_on_cluster.py` names runs `DBMS-bench <branch> <bench>/<db>` on paper branches.
 - TPC-C builds 40 warehouses (10 per virtual user) instead of 80: the unmeasured build halves and a
   tuned buffer pool can hold the roughly 4 GB data set at T1 and T2.
-- The SQL Server BenchBase load steps inject `useBulkCopyForBatchInsert=true` into the JDBC URL, so the
-  loader uses the bulk-copy API (YCSB load 365 s to 128 s in a local A/B test). The warm-up and measured
-  steps keep the plain URL on purpose: the same setting could slow single-statement transactions, and a
-  local check could not rule that out because run-to-run throughput varied by a factor of 8.7 from warm-up.
+- The SQL Server BenchBase load steps for YCSB and CH-benCHmark inject `useBulkCopyForBatchInsert=true`
+  into the JDBC URL, so the loader uses the bulk-copy API (YCSB load 365 s to 128 s in a local A/B test).
+  The warm-up and measured steps keep the plain URL on purpose: the same setting could slow
+  single-statement transactions, and a local check could not rule that out because run-to-run throughput
+  varied by a factor of 8.7 from warm-up. Wikipedia is left out entirely: its SQL Server schema has six
+  IDENTITY columns that BenchBase loads under SET IDENTITY_INSERT ON, and mssql-jdbc 11.2.3 runs its bulk
+  copy with keepIdentity=false, which makes the load fail with error 545. YCSB, CH-benCHmark and TPC-H
+  have no IDENTITY column in their SQL Server DDL, so they are unaffected.
 
 ## Paper branch `t1-new`: T1: resource-sized, workload-blind
 
