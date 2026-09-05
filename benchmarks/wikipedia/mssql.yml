@@ -35,14 +35,16 @@ flow:
   - name: Load Wikipedia schema and data
     container: benchbase_container
     commands:
-      # The loader, and only the loader, runs with useBulkCopyForBatchInsert: it makes the
-      # Microsoft JDBC driver push batched INSERTs through the bulk-copy API, which cut the
-      # YCSB load from 365 s to 128 s in a local A/B test. It is injected here rather than
-      # kept in the config file so that it cannot reach the warm-up or the measured run,
-      # whose single-statement transactions it could otherwise slow down.
+      # This loader keeps the plain JDBC URL, unlike the YCSB and CH-benCHmark ones. The
+      # Wikipedia schema for SQL Server has six IDENTITY columns and BenchBase loads them
+      # under SET IDENTITY_INSERT ON, supplying the key itself. useBulkCopyForBatchInsert
+      # cannot honour that: mssql-jdbc 11.2.3 builds its SQLServerBulkCopy with the default
+      # keepIdentity=false and offers no connection property to change it, so the load dies
+      # on error 545 ("Explicit value must be specified for identity column in table
+      # 'useracct'"). The load step is unmeasured, so only its wall clock is affected.
       - type: console
         note: BENCHBASE CREATE + LOAD
-        command: cd /benchbase/benchbase-sqlserver && sed 's#;</url>#;useBulkCopyForBatchInsert=true;</url>#' /tmp/repo/db/mssql/wikipedia/mssql_wikipedia_config.xml > /tmp/benchbase-load.xml && grep -q 'useBulkCopyForBatchInsert=true' /tmp/benchbase-load.xml && java -jar benchbase.jar -b wikipedia -c /tmp/benchbase-load.xml --create=true --load=true --execute=false
+        command: cd /benchbase/benchbase-sqlserver && java -jar benchbase.jar -b wikipedia -c /tmp/repo/db/mssql/wikipedia/mssql_wikipedia_config.xml --create=true --load=true --execute=false
         shell: bash
         log-stdout: true
   - name: Warm up
