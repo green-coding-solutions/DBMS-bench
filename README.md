@@ -302,7 +302,7 @@ is the base of every tier and host branch and differs from `main` in these point
   copy with keepIdentity=false, which makes the load fail with error 545. YCSB, CH-benCHmark and TPC-H
   have no IDENTITY column in their SQL Server DDL, so they are unaffected.
 
-## Paper branch `t1-new`: T1: resource-sized, workload-blind
+## Paper branch `t1`: T1: resource-sized, workload-blind
 
 Forks from `t0`. Every scenario applies the tier configuration to the DBMS (see `TIERS.md` for
 every parameter, its value, its source and what was deliberately not applied) and starts with a
