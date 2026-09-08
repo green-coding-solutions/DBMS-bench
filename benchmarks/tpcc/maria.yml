@@ -11,6 +11,19 @@ custom_metrics:
     sci: true
 
 services:
+  mariadb:
+    # T3: energy search trial. Server parameters as command-line
+    # arguments so they are in force from the first start; provenance in TIERS.md.
+    command:
+      - "--innodb-buffer-pool-size=6144M"
+      - "--innodb-log-file-size=4096M"
+      - "--innodb-purge-threads=1"
+      - "--innodb-log-buffer-size=37M"
+      - "--innodb-io-capacity=281"
+      - "--innodb-io-capacity-max=2000"
+      - "--innodb-adaptive-hash-index=ON"
+      - "--innodb-spin-wait-delay=12"
+      - "--innodb-flush-method=O_DIRECT"
   cockroach: # unused — empty key removes the service
   postgres: # empty key will remove the unused service
   mysql: # empty key will remove the service
@@ -24,6 +37,17 @@ services:
         condition: service_healthy
 
 flow:
+  - name: Configure DBMS
+    container: mariadb_container
+    commands:
+      # Paper tier branch: prints CONFIG <name>=<value> for every parameter any tier
+      # touches, then the full effective configuration, so the run log proves the tier
+      # took effect. Outside the measured phase; see TIERS.md.
+      - type: console
+        note: CONFIGURE DBMS (T3, applied at container start through the command line above)
+        command: mariadb -uroot -pmaria --skip-column-names < /tmp/repo/db/maria/tiers/configure.sql
+        shell: bash
+        log-stdout: true
   - name: Build Warehouses
     container: hammerdb_container
     commands:
