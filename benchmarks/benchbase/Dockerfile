@@ -32,6 +32,20 @@ WORKDIR /src
 RUN git clone https://github.com/cmu-db/benchbase.git . \
  && git checkout "${BENCHBASE_REF}"
 
+# Add a SQL Server dialect for the CH-benCHmark queries. Upstream ships dialects for
+# Oracle and SQLite only, so the SQLSERVER profile runs the generic PostgreSQL-flavoured
+# statements and 17 of the 22 queries fail on SQL Server (MOD, EXTRACT, `substring ...
+# from ... for`, six-digit datetime fractions, aliases in GROUP BY). The file next to this
+# Dockerfile rewrites exactly those 17 statements in T-SQL with unchanged semantics; the
+# other five run as shipped. Found 14 September 2026: every run of the SQL Server
+# CH-benCHmark scenario had reported those queries under 'Unexpected SQL Errors'.
+# Upstream: https://github.com/cmu-db/benchbase  (benchmarks/chbenchmark/dialect-*.xml)
+COPY chbenchmark-dialect-sqlserver.xml src/main/resources/benchmarks/chbenchmark/dialect-sqlserver.xml
+RUN set -eux; \
+    f=src/main/resources/benchmarks/chbenchmark/dialect-sqlserver.xml; \
+    test -s "$f"; grep -q '<dialect type="SQLSERVER">' "$f"; \
+    test "$(grep -c '<procedure name=' "$f")" = 17
+
 # Patch an upstream Wikipedia data-generator bug: UpdatePage truncates the
 # generated revComment to 254 chars before writing revision.rev_comment, but
 # writes the *untruncated* value into recentchanges.rc_comment (also
