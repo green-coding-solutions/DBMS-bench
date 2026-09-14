@@ -12,6 +12,13 @@ custom_metrics:
 
 services:
   postgres:
+    # PostgreSQL parallel workers pass hash-join batches through POSIX shared memory in /dev/shm,
+    # which Docker limits to 64 MB by default. Under the tuned tiers the CH-benCHmark queries
+    # exceeded it (Q15 never completed at T1 and T2: 'could not resize shared memory segment ...
+    # No space left on device', 14 Sep 2026), so the container gets the 1 GB that the image's
+    # documentation recommends. Same value on every tier of this cell.
+    docker-run-args:
+      - "--shm-size=1g"
     # T1: resource-sized, workload-blind. Server parameters as command-line
     # arguments so they are in force from the first start; provenance in TIERS.md.
     command:
@@ -89,8 +96,12 @@ flow:
     container: benchbase_container
     commands:
       - type: console
+        # After the run the step prints the summary JSON and a per-transaction-type latency
+        # table computed from BenchBase's raw.csv (every request recorded inside the measured
+        # window, whatever its outcome): count, mean and nearest-rank p50/p95/p99/max in ms. The
+        # OLTP and OLAP parts of the hybrid workload are curated separately from it (14 Sep 2026).
         note: BENCHBASE EXECUTE CH-benCHmark (measured)
-        command: cd /benchbase/benchbase-postgres && java -jar benchbase.jar -b tpcc,chbenchmark -c /tmp/repo/db/pg/chbenchmark/pg_chbenchmark_config.xml --create=false --load=false --execute=true 2>&1 | tee /tmp/benchbase-run.log; echo '=== BENCHBASE SUMMARY ==='; cat "$(ls -t results/*.summary.json | head -n 1)" || echo 'SUMMARY MISSING'; awk 'match($0,/measuredRequests=[0-9]+/) {v=substr($0,RSTART+17,RLENGTH-17)} END {if (v=="") exit 1; "date +%s"|getline ts; printf("%s000000 chbenchmark_requests=%s\n", ts, v)}' /tmp/benchbase-run.log
+        command: cd /benchbase/benchbase-postgres && java -jar benchbase.jar -b tpcc,chbenchmark -c /tmp/repo/db/pg/chbenchmark/pg_chbenchmark_config.xml --create=false --load=false --execute=true 2>&1 | tee /tmp/benchbase-run.log; echo '=== BENCHBASE SUMMARY ==='; cat "$(ls -t results/*.summary.json | head -n 1)" || echo 'SUMMARY MISSING'; echo '=== BENCHBASE PER-TYPE LATENCY ==='; echo 'type,count,mean_ms,p50_ms,p95_ms,p99_ms,max_ms'; { f="$(ls -t results/*.raw.csv 2>/dev/null | head -n 1)" && [ -n "$f" ] && tail -n +2 "$f" | sort -t, -k2,2 -k4,4n | awk -F, 'function out() { i50=int(0.5*n); if (i50<0.5*n) i50++; i95=int(0.95*n); if (i95<0.95*n) i95++; i99=int(0.99*n); if (i99<0.99*n) i99++; printf("%s,%d,%.3f,%.3f,%.3f,%.3f,%.3f\n", cur, n, s/n/1000, v[i50]/1000, v[i95]/1000, v[i99]/1000, v[n]/1000) } $2 != cur { if (n) out(); cur=$2; n=0; s=0; split("", v) } { n++; s+=$4; v[n]=$4 } END { if (n) out() }' && tail -n +2 "$f" | awk -F, '{ c="OLTP"; if ($2 ~ /^Q[0-9]+$/) c="OLAP"; print c "," $4 }' | sort -t, -k1,1 -k2,2n | awk -F, 'function out() { i50=int(0.5*n); if (i50<0.5*n) i50++; i95=int(0.95*n); if (i95<0.95*n) i95++; i99=int(0.99*n); if (i99<0.99*n) i99++; printf("%s,%d,%.3f,%.3f,%.3f,%.3f,%.3f\n", cur, n, s/n/1000, v[i50]/1000, v[i95]/1000, v[i99]/1000, v[n]/1000) } $1 != cur { if (n) out(); cur=$1; n=0; s=0; split("", v) } { n++; s+=$2; v[n]=$2 } END { if (n) out() }'; } || echo 'PER-TYPE MISSING'; echo '=== END PER-TYPE LATENCY ==='; awk 'match($0,/measuredRequests=[0-9]+/) {v=substr($0,RSTART+17,RLENGTH-17)} END {if (v=="") exit 1; "date +%s"|getline ts; printf("%s000000 chbenchmark_requests=%s\n", ts, v)}' /tmp/benchbase-run.log
         shell: bash
         log-stdout: true
         read-sci-stdout: true
