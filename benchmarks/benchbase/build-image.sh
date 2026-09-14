@@ -19,9 +19,10 @@
 set -euo pipefail
 
 OUT_IMAGE="${OUT_IMAGE:-ribalba/benchbase:latest}"
-# BenchBase has no GitHub releases; `main` is the moving default. Pin a commit
-# SHA via BENCHBASE_REF for a reproducible build.
-BENCHBASE_REF="${BENCHBASE_REF:-main}"
+# BenchBase has no GitHub releases. The default is pinned to the commit that `main`
+# pointed at when the image of 3 September 2026 was built, so that a rebuild (for
+# example with a new dialect file) changes nothing else; override via BENCHBASE_REF.
+BENCHBASE_REF="${BENCHBASE_REF:-33c00473807ebd49304d114a6d769d2d2b2bbb34}"
 # Engines we benchmark. BenchBase profile names (note: postgres->pg, mariadb->maria,
 # sqlserver->mssql in this repo's directory naming). No Db2 profile exists.
 BENCHBASE_PROFILES="${BENCHBASE_PROFILES:-postgres mysql mariadb sqlserver oracle cockroachdb}"

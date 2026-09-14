@@ -220,5 +220,5 @@ services:
     container_name: hammerdb_container
 
   benchbase:
-    image: ribalba/benchbase@sha256:f7a0f21e8bfc16d2759b8160d23535e684a44a090846bb0b5d2a02948b54829b  # ribalba/benchbase:latest on 2026-09-04: BenchBase load driver (built 3 September 2026)
+    image: ribalba/benchbase@sha256:85c175561d83d62540d4247f786cf97e302c07c69e3be1eb230ed9abb4df583f  # ribalba/benchbase:latest on 2026-09-14: BenchBase 33c0047 plus the CH-benCHmark SQL Server dialect (P12)
     container_name: benchbase_container
