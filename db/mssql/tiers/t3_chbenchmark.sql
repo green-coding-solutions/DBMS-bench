@@ -11,20 +11,20 @@ SELECT 'INFO tempdb file ' + name + ' size_mb=' + CONVERT(varchar(20), size * 8 
 SELECT '=== APPLYING T3: energy search trial, class chbenchmark ===';
 EXEC sp_configure 'show advanced options', 1;
 RECONFIGURE WITH OVERRIDE;
-EXEC sp_configure 'max degree of parallelism', 1;
+EXEC sp_configure 'max degree of parallelism', 4;
 ALTER SERVER CONFIGURATION SET PROCESS AFFINITY CPU = AUTO;
 EXEC sp_configure 'default trace enabled', 0;
 ALTER DATABASE model SET RECOVERY SIMPLE;
-EXEC sp_configure 'recovery interval (min)', 103;
-EXEC sp_configure 'cost threshold for parallelism', 60;
-EXEC sp_configure 'optimize for ad hoc workloads', 1;
+EXEC sp_configure 'recovery interval (min)', 32767;
+EXEC sp_configure 'cost threshold for parallelism', 5;
+EXEC sp_configure 'optimize for ad hoc workloads', 0;
 -- Buffer pool cap as a fraction of the process memory limit the engine reports
 -- (physical_memory_kb, 80 percent of the cgroup). min is lowered first so that a
 -- max below the previous min is accepted.
 EXEC sp_configure 'min server memory (MB)', 16;
 RECONFIGURE WITH OVERRIDE;
 DECLARE @phys int = (SELECT physical_memory_kb / 1024 FROM sys.dm_os_sys_info);
-DECLARE @maxmem int = CAST(@phys * 0.6123 AS int);
+DECLARE @maxmem int = CAST(@phys * 0.4000 AS int);
 EXEC sp_configure 'max server memory (MB)', @maxmem;
 EXEC sp_configure 'min server memory (MB)', @maxmem;
 RECONFIGURE WITH OVERRIDE;

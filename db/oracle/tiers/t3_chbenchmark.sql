@@ -18,9 +18,9 @@ ALTER SYSTEM SET filesystemio_options=DIRECTIO SCOPE=SPFILE;
 ALTER SYSTEM SET log_checkpoints_to_alert=TRUE SCOPE=SPFILE;
 ALTER SYSTEM SET log_checkpoint_timeout=1800 SCOPE=SPFILE;
 ALTER SYSTEM SET log_checkpoint_interval=0 SCOPE=SPFILE;
-ALTER SYSTEM SET fast_start_mttr_target=300 SCOPE=SPFILE;
-ALTER SYSTEM SET optimizer_dynamic_sampling=0 SCOPE=SPFILE;
-ALTER SYSTEM SET db_writer_processes=4 SCOPE=SPFILE;
+ALTER SYSTEM SET fast_start_mttr_target=203 SCOPE=SPFILE;
+ALTER SYSTEM SET optimizer_dynamic_sampling=1 SCOPE=SPFILE;
+ALTER SYSTEM SET db_writer_processes=2 SCOPE=SPFILE;
 ALTER SYSTEM SET log_buffer=9437184 SCOPE=SPFILE;
 -- Redo log capacity: three new groups of 1024M, then the shipped 200 MB groups are dropped.
 ALTER DATABASE ADD LOGFILE GROUP 4 '/opt/oracle/oradata/FREE/redo04.log' SIZE 1024M;

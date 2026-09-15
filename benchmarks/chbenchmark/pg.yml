@@ -12,13 +12,6 @@ custom_metrics:
 
 services:
   postgres:
-    # PostgreSQL parallel workers pass hash-join batches through POSIX shared memory in /dev/shm,
-    # which Docker limits to 64 MB by default. Under the tuned tiers the CH-benCHmark queries
-    # exceeded it (Q15 never completed at T1 and T2: 'could not resize shared memory segment ...
-    # No space left on device', 14 Sep 2026), so the container gets the 1 GB that the image's
-    # documentation recommends. Same value on every tier of this cell.
-    docker-run-args:
-      - "--shm-size=1g"
     # T3: energy search trial. Server parameters as command-line
     # arguments so they are in force from the first start; provenance in TIERS.md.
     command:
@@ -26,45 +19,53 @@ services:
       - "-c"
       - "max_connections=100"
       - "-c"
-      - "shared_buffers=4096MB"
+      - "shared_buffers=2745MB"
       - "-c"
       - "effective_cache_size=6144MB"
       - "-c"
       - "maintenance_work_mem=512MB"
       - "-c"
-      - "work_mem=21561kB"
+      - "work_mem=4096kB"
       - "-c"
-      - "checkpoint_completion_target=0.90"
+      - "checkpoint_completion_target=0.50"
       - "-c"
       - "wal_buffers=16MB"
       - "-c"
       - "default_statistics_target=100"
       - "-c"
-      - "random_page_cost=2.47"
+      - "random_page_cost=1.00"
       - "-c"
-      - "effective_io_concurrency=1"
+      - "effective_io_concurrency=8"
       - "-c"
       - "min_wal_size=1024MB"
       - "-c"
-      - "max_wal_size=2161MB"
+      - "max_wal_size=1088MB"
       - "-c"
       - "huge_pages=try"
       - "-c"
-      - "wal_compression=lz4"
+      - "wal_compression=off"
       - "-c"
       - "max_worker_processes=4"
       - "-c"
       - "max_parallel_workers=4"
       - "-c"
-      - "max_parallel_workers_per_gather=0"
+      - "max_parallel_workers_per_gather=2"
       - "-c"
       - "max_parallel_maintenance_workers=2"
       - "-c"
       - "jit=off"
       - "-c"
-      - "checkpoint_timeout=418s"
+      - "checkpoint_timeout=740s"
       - "-c"
-      - "io_workers=8"
+      - "io_workers=5"
+  postgres:
+    # PostgreSQL parallel workers pass hash-join batches through POSIX shared memory in /dev/shm,
+    # which Docker limits to 64 MB by default. Under the tuned tiers the CH-benCHmark queries
+    # exceeded it (Q15 never completed at T1 and T2: 'could not resize shared memory segment ...
+    # No space left on device', 14 Sep 2026), so the container gets the 1 GB that the image's
+    # documentation recommends. Same value on every tier of this cell.
+    docker-run-args:
+      - "--shm-size=1g"
   cockroach: # unused — empty key removes the service
   mariadb: # unused — empty key removes the service
   mysql: # unused — empty key removes the service
