@@ -108,6 +108,21 @@ flow:
         command: cd /benchbase/benchbase-postgres && java -jar benchbase.jar -b tpcc,chbenchmark -c /tmp/repo/db/pg/chbenchmark/pg_chbenchmark_config.xml --create=true --load=true --execute=false
         shell: bash
         log-stdout: true
+  - name: Refresh optimizer statistics
+    container: postgres_container
+    commands:
+      # The BenchBase loader does not analyze the tables it fills, so the planner statistics
+      # come from autovacuum, which samples the tables while the load is still running. A
+      # sample taken while order_line was empty made the planner scan order_line by warehouse
+      # and district only (40 rows estimated, 30,000 present) in Q10 and Q18, and the warm-up
+      # waited 73 to 88 min for that query on machine 13 (16 Sep 2026). Refreshing the
+      # statistics after the load is what a DBA does after a bulk load and what the HammerDB
+      # scenarios already do (pg_vacuum). Outside the measured phase; same on every tier.
+      - type: console
+        note: ANALYZE AFTER LOAD
+        command: psql -U postgres -d benchbase -c "ANALYZE"
+        shell: bash
+        log-stdout: true
   - name: Warm up
     container: benchbase_container
     commands:
