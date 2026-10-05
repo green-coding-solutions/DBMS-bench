@@ -1,0 +1,88 @@
+# Compose file for the long running HammerDB TPC-C time series, included by the
+# usage_scenario_{pg,maria,mysql}.yml files in the repo root. Read legacy/README.md
+# before changing anything here. This file is NOT a copy of the root compose.yml and
+# check_repo.py does not look at it.
+#
+# The differences to the root compose.yml are deliberate:
+#   - No cpus / mem_limit. The series has run unconstrained since 2023, so adding a
+#     limit would change what is measured.
+#   - Pinned image tags instead of :latest. The watchlist runs in commit-variance
+#     mode, so every Dependabot bump commit triggers a measurement of the new DB
+#     version. With :latest a new DB release would never trigger a run.
+#   - Healthchecks only probe while the container starts (start_interval) and
+#     then wait 24h. The old setup had no probes at all, so nothing may exec into
+#     the DB containers during the measured flows.
+services:
+  postgres:
+    image: postgres:18.6-trixie
+    container_name: postgres_container
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    healthcheck:
+      # Over TCP on purpose. The entrypoint's temporary init server only listens on
+      # the unix socket, so a socket probe can report ready before the real server is up.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres -d postgres"]
+      start_period: 120s
+      start_interval: 2s
+      interval: 24h
+      timeout: 5s
+      retries: 3
+  mariadb:
+    image: mariadb:13.0.2-resolute
+    container_name: mariadb_container
+    environment:
+      MYSQL_ROOT_PASSWORD: maria
+      MYSQL_DATABASE: maria
+      MYSQL_USER: maria
+      MYSQL_PASSWORD: maria
+    healthcheck:
+      # --connect only succeeds once the entrypoint has finished initialising, because
+      # the init server runs with --skip-networking.
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      start_period: 120s
+      start_interval: 2s
+      interval: 24h
+      timeout: 5s
+      retries: 3
+  mysql:
+    # None of the 2023 MySQL runs got past the schema build, so this service is set up
+    # the way the root compose.yml proved to work, not the way it ran back then.
+    #
+    # MySQL 9.0 removed mysql_native_password, so the old
+    # --default-authentication-plugin=mysql_native_password command is gone (on 9.x+ the
+    # server aborts on it). Every account is caching_sha2_password, which refuses a
+    # plaintext login until the server holds the password in its cache. HammerDB's
+    # mysqltcl has no RSA key exchange, so the setup-commands below make ONE TLS login
+    # as the `mysql` user to prime that cache. The measured workload then runs over
+    # plaintext TCP like the other engines.
+    image: mysql:26.7.0-oraclelinux9
+    container_name: mysql_container
+    environment:
+      MYSQL_ROOT_PASSWORD: mysql
+      # Not `mysql`, which is MySQL's own system schema. See legacy/mysql/*.tcl.
+      MYSQL_DATABASE: tpcc
+      MYSQL_USER: mysql
+      MYSQL_PASSWORD: mysql
+    healthcheck:
+      # Over TCP on purpose. The entrypoint's init server runs with --skip-networking.
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -pmysql --silent"]
+      start_period: 120s
+      start_interval: 2s
+      interval: 24h
+      timeout: 5s
+      retries: 3
+    # Runs right after `docker run` during BOOT, before the healthcheck has passed,
+    # hence the explicit wait. MYSQL_PWD avoids the "password on the command line"
+    # warning. No `$` anywhere, docker compose would interpolate it.
+    setup-commands:
+      - shell: bash
+        command: |
+          timeout 300 bash -c "until mysqladmin ping -h 127.0.0.1 -uroot -pmysql --silent >/dev/null 2>&1; do sleep 2; done"
+          MYSQL_PWD=mysql mysql -h mysql_container --protocol=TCP -umysql --ssl-mode=REQUIRED -e "SELECT 1" >/dev/null
+
+  hammerdb:
+    # Always ran on :latest, so it stays on :latest.
+    image: tpcorg/hammerdb:latest
+    container_name: hammerdb_container

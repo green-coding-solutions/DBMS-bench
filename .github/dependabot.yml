@@ -24,6 +24,11 @@ updates:
       - "/benchmarks/wikipedia"
       - "/benchmarks/ycsb"
       - "/benchmarks/chbenchmark"
+      # legacy/ is the exception to the floating tags above. Its compose.yml is its own
+      # file (not a copy) with pinned tags, because those watchlist entries run in
+      # commit-variance mode and the bump commits are what trigger a measurement of each
+      # new DB release. See legacy/README.md.
+      - "/legacy"
     groups:
       # One PR per image that bumps all six copies together, instead of six PRs
       # that each leave the copies out of sync until the last one merges.

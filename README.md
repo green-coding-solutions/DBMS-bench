@@ -27,6 +27,11 @@ For each DB vendor and benchmark we have a `benchmarks/<benchmark>/<db>.yml` (e.
 per-DB scripts live under `db/<db>/<benchmark>/`: HammerDB TCL scripts for TPC-C/TPC-H (e.g. `db/pg/tpcc/`), BenchBase
 config XMLs for Wikipedia/YCSB/CH-benCHmark (e.g. `db/pg/wikipedia/pg_wikipedia_config.xml`).
 
+The `usage_scenario_pg.yml`, `usage_scenario_maria.yml` and `usage_scenario_mysql.yml` files in the repo root are not
+part of this layout. They are the original TPC-C time series that has run in the GMT watchlist since 2023, and they
+use their own pinned `legacy/compose.yml` and frozen scripts in `legacy/`. Read [legacy/README.md](legacy/README.md)
+before touching any of them.
+
 Each benchmark directory keeps its **own copy of `compose.yml`** (`benchmarks/tpcc/compose.yml`,
 `benchmarks/tpch/compose.yml`, …): GMT's `!include` only resolves files inside the scenario's own directory, so
 `!include ../compose.yml` is rejected. Treat the root `compose.yml` as the source of truth and re-sync the copies
