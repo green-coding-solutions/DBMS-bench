@@ -57,7 +57,7 @@ services:
     # mysqltcl has no RSA key exchange, so the setup-commands below make ONE TLS login
     # as the `mysql` user to prime that cache. The measured workload then runs over
     # plaintext TCP like the other engines.
-    image: mysql:26.7.0-oraclelinux9
+    image: mysql:26.10.0-oraclelinux9
     container_name: mysql_container
     environment:
       MYSQL_ROOT_PASSWORD: mysql
